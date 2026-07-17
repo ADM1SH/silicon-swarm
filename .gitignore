@@ -1,0 +1,13 @@
+# Build outputs
+*.o
+*.elf
+*.img
+*.bin
+*.map
+
+# Device tree dumps (regenerate via `make dumpdtb`)
+*.dtb
+*.dts
+
+# macOS
+.DS_Store

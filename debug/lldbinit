@@ -1,0 +1,7 @@
+# Homebrew's gdb needs a self-signed codesigning cert on macOS to attach to
+# processes; lldb (bundled with Xcode CLT) talks the same gdbserver protocol
+# QEMU's `-s -S` exposes, so we use it instead and skip that setup entirely.
+#
+# Usage: lldb -s debug/lldbinit   (after `make debug` is running in another shell)
+target create build/silicon_swarm.elf
+gdb-remote localhost:1234

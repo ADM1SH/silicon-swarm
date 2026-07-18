@@ -8,14 +8,14 @@ ELF      := $(BUILD)/silicon_swarm.elf
 IMG      := $(BUILD)/silicon_swarm.img
 
 CFLAGS   := -target $(TARGET) -ffreestanding -nostdlib -mcpu=cortex-a72 \
-            -std=c11 -Wall -Wextra -O2 -g -Iinclude
+            -std=c11 -Wall -Wextra -O2 -g -I.
 ASFLAGS  := -target $(TARGET) -ffreestanding -nostdlib -mcpu=cortex-a72 -g
 
 QEMU     := qemu-system-aarch64
 QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
 
 S_SRCS   := boot/start.S
-C_SRCS   :=
+C_SRCS   := kernel/kmain.c kernel/uart.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
 

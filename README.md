@@ -126,10 +126,26 @@ silicon-swarm/
 | PL031 RTC | `0x09010000` | not needed for v1 |
 | fw_cfg | `0x09020000` | selector @ +0x08, data @ +0x00, DMA @ +0x10 |
 | virtio-mmio bank | `0x0a000000` | 32 slots × `0x200` stride |
-| RAM | `0x40000000` | `-kernel` load address |
+| RAM | `0x40000000` | RAM base. Our code links/loads at `0x40080000` — see below. |
 
 Generic Timer (EL1 physical): non-secure PPI 14 → GIC interrupt ID 30. Confirm via
 device tree dump — do not assume.
+
+**Verified the hard way in Phase 2:** for a raw/flat `-kernel` image (no ELF
+header, no Linux Image magic — exactly what `llvm-objcopy -O binary` produces),
+QEMU's `arm_load_kernel()` has nothing to read an entry point from, so it falls
+back to the AArch64 Linux boot protocol convention: install a tiny synthetic
+stub at RAM base (`0x40000000`) that sets `x1`-`x3` to 0 and jumps to
+`RAM_base + 0x80000`, and load the actual kernel image bytes there instead of
+at RAM base. `linker.ld` links everything starting at `0x40080000` to match.
+Getting this wrong doesn't stop the board from booting — PC-relative code
+(branches, `adr`, `bl`) keeps working since it's self-consistent regardless of
+an overall base offset — it silently corrupts every *absolute* address a
+mismatched link computes (stack pointer, `VBAR_EL1`, saved `ELR_EL1`, any
+string/jump table lookup), which is exactly why Phase 0's spin-loop and Phase
+1's UART-only boot message both looked fine while linked 0x80000 too low, and
+only Phase 2's exception diagnostics (the first genuinely absolute-address-
+dependent code) exposed it.
 
 ## Roadmap
 

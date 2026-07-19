@@ -15,7 +15,7 @@ QEMU     := qemu-system-aarch64
 QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
 
 S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S
-C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c
+C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
 
@@ -41,7 +41,7 @@ run: $(IMG)
 	$(QEMU) $(QFLAGS) -nographic -kernel $(IMG)
 
 run-gfx: $(IMG)
-	$(QEMU) $(QFLAGS) -display cocoa -kernel $(IMG)
+	$(QEMU) $(QFLAGS) -device ramfb -display cocoa -kernel $(IMG)
 
 debug: $(IMG)
 	$(QEMU) $(QFLAGS) -nographic -kernel $(IMG) -s -S

@@ -68,6 +68,16 @@ in_el1:
     str     xzr, [x0], #8
     b       1b
 2:
+    // CPACR_EL1.FPEN=0b11: EL0/EL1 FP/SIMD access untrapped. Found the hard
+    // way in Phase 5 — even "plain C" code needs this, since -O2 silently
+    // auto-vectorizes eligible loops (e.g. the framebuffer fill) into NEON
+    // instructions, which trap with EC=7 otherwise. Doing this before
+    // kmain, not just before Phase 9's deliberate NEON code, for exactly
+    // that reason.
+    mov     x0, #(0x3 << 20)
+    msr     cpacr_el1, x0
+    isb
+
     bl      kmain
     b       .                       // kmain must never return
 

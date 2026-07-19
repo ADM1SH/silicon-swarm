@@ -128,8 +128,11 @@ silicon-swarm/
 | virtio-mmio bank | `0x0a000000` | 32 slots × `0x200` stride |
 | RAM | `0x40000000` | RAM base. Our code links/loads at `0x40080000` — see below. |
 
-Generic Timer (EL1 physical): non-secure PPI 14 → GIC interrupt ID 30. Confirm via
-device tree dump — do not assume.
+Generic Timer, EL1 physical: non-secure PPI 14 → GIC interrupt ID 30. EL1
+virtual: PPI 11 → GIC interrupt ID 27. Both confirmed via `make dumpdtb`.
+**We use the virtual timer, not the physical one** — see Phase 4 in the
+roadmap below for why (a QEMU 11.0.2 `-cpu host`+hvf-specific bug in the
+physical timer's compare-value write path).
 
 **Verified the hard way in Phase 2:** for a raw/flat `-kernel` image (no ELF
 header, no Linux Image magic — exactly what `llvm-objcopy -O binary` produces),

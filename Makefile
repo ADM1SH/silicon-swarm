@@ -15,7 +15,7 @@ QEMU     := qemu-system-aarch64
 QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
 
 S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S
-C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c
+C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
 

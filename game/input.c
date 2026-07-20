@@ -1,0 +1,29 @@
+#include "game/input.h"
+#include "kernel/uart.h"
+
+input_action_t input_poll(void) {
+    uint8_t c;
+    if (!uart_getc_nonblock(&c)) {
+        return INPUT_NONE;
+    }
+    switch (c) {
+    case 'w':
+    case 'W':
+        return INPUT_UP;
+    case 's':
+    case 'S':
+        return INPUT_DOWN;
+    case 'a':
+    case 'A':
+        return INPUT_LEFT;
+    case 'd':
+    case 'D':
+        return INPUT_RIGHT;
+    case ' ':
+    case '\r':
+    case '\n':
+        return INPUT_CONFIRM;
+    default:
+        return INPUT_NONE;
+    }
+}

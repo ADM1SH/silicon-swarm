@@ -1,4 +1,5 @@
 #include "engine/entity_soa.h"
+#include "engine/flowfield.h"
 #include "game/input.h"
 #include "kernel/alloc.h"
 #include "kernel/exceptions.h"
@@ -12,8 +13,21 @@
 #define CURSOR_STEP 8
 #define CURSOR_COLOR 0x00FFFFFFu
 #define ENTITY_COLOR 0x0060C0FFu
+#define WALL_COLOR 0x00802020u
 #define BG_COLOR 0x00101018u
 #define NUM_DUMMY_ENTITIES 10000
+#define ENTITY_SPEED (2 << 16) // 2 px/tick in Q16.16, toward the next flow-field cell
+
+// City center: the flow field's target. A wall sits just to its left, wide
+// enough to force a real detour, with 5-cell gaps top and bottom so
+// (0,0)-reachability isn't lost -- see tests/test_flowfield.c for the BFS
+// correctness this depends on.
+#define TARGET_GX (FLOWFIELD_W / 2)
+#define TARGET_GY (FLOWFIELD_H / 2)
+#define WALL_GX_START (TARGET_GX - 5)
+#define WALL_GX_END (TARGET_GX - 3)
+#define WALL_GY_START 5
+#define WALL_GY_END (FLOWFIELD_H - 6)
 
 static uint32_t gradient_color(int x, int y) {
     uint32_t r = (uint32_t)(x * 255 / (FB_WIDTH - 1));
@@ -55,51 +69,115 @@ static uint32_t next_rand(void) {
     return (g_rng_state >> 16) & 0x7fff;
 }
 
-static void spawn_dummy_entities(void) {
-    for (int i = 0; i < NUM_DUMMY_ENTITIES; i++) {
-        int32_t x = (int32_t)(next_rand() % FB_WIDTH) << 16;
-        int32_t y = (int32_t)(next_rand() % FB_HEIGHT) << 16;
-        int32_t vx_px = (int32_t)(next_rand() % 4) - 2; // -2..1 px/tick
-        if (vx_px == 0) vx_px = 1;
-        int32_t vy_px = (int32_t)(next_rand() % 4) - 2;
-        if (vy_px == 0) vy_px = -1;
-        entity_spawn(x, y, vx_px << 16, vy_px << 16, 1, 0);
+// Phase 8's obstacle: a wall block just left of the city center, with
+// 5-cell gaps top and bottom so entities can still detour around it.
+static void setup_wall(void) {
+    for (int gy = WALL_GY_START; gy <= WALL_GY_END; gy++) {
+        for (int gx = WALL_GX_START; gx <= WALL_GX_END; gx++) {
+            flowfield_cost[gy][gx] = 255;
+        }
     }
 }
 
-// Position update (engine/entity_soa.c) plus a wall-bounce policy -- bounds
-// are a game-level concern, not the generic SoA module's job.
+static void draw_walls(void) {
+    for (int gy = 0; gy < FLOWFIELD_H; gy++) {
+        for (int gx = 0; gx < FLOWFIELD_W; gx++) {
+            if (flowfield_cost[gy][gx] != 255) {
+                continue;
+            }
+            int px0 = gx * FLOWFIELD_CELL_SIZE;
+            int py0 = gy * FLOWFIELD_CELL_SIZE;
+            for (int dy = 0; dy < FLOWFIELD_CELL_SIZE; dy++) {
+                for (int dx = 0; dx < FLOWFIELD_CELL_SIZE; dx++) {
+                    framebuffer_set_pixel(px0 + dx, py0 + dy, WALL_COLOR);
+                }
+            }
+        }
+    }
+}
+
+// Spawns at screen edges per the phase spec, spread round-robin across all
+// four. Velocity starts at zero -- entity_tick() steers every entity from
+// the flow field each tick, not from an initial throw.
+static void spawn_dummy_entities(void) {
+    for (int i = 0; i < NUM_DUMMY_ENTITIES; i++) {
+        int32_t x, y;
+        switch (i % 4) {
+        case 0: // top edge
+            x = (int32_t)(next_rand() % FB_WIDTH) << 16;
+            y = 0;
+            break;
+        case 1: // bottom edge
+            x = (int32_t)(next_rand() % FB_WIDTH) << 16;
+            y = (int32_t)(FB_HEIGHT - 1) << 16;
+            break;
+        case 2: // left edge
+            x = 0;
+            y = (int32_t)(next_rand() % FB_HEIGHT) << 16;
+            break;
+        default: // right edge
+            x = (int32_t)(FB_WIDTH - 1) << 16;
+            y = (int32_t)(next_rand() % FB_HEIGHT) << 16;
+            break;
+        }
+        entity_spawn(x, y, 0, 0, 1, 0);
+    }
+}
+
+static int32_t clamp_step(int32_t delta, int32_t max_step) {
+    if (delta > max_step) return max_step;
+    if (delta < -max_step) return -max_step;
+    return delta;
+}
+
+// Per-entity steering is a fixed O(1) flowfield_step() lookup -- no search,
+// so cost doesn't grow with obstacle count (see tests/test_flowfield.c and
+// README's Phase 8 note). engine/entity_soa.c's entity_update_all() then
+// applies the velocities this computes, same as Phase 7.
 static void entity_tick(void) {
-    entity_update_all();
     for (uint32_t i = 0; i < entity_count; i++) {
         if (!entity_alive[i]) {
             continue;
         }
-        int32_t px = entity_x[i] >> 16;
-        if (px < 0) {
-            entity_x[i] = 0;
-            entity_vx[i] = -entity_vx[i];
-        } else if (px >= FB_WIDTH) {
-            entity_x[i] = (int32_t)(FB_WIDTH - 1) << 16;
-            entity_vx[i] = -entity_vx[i];
+        int gx = (int)(entity_x[i] >> 16) / FLOWFIELD_CELL_SIZE;
+        int gy = (int)(entity_y[i] >> 16) / FLOWFIELD_CELL_SIZE;
+        int next_gx, next_gy;
+        if (!flowfield_step(gx, gy, &next_gx, &next_gy) ||
+            (next_gx == gx && next_gy == gy)) {
+            entity_vx[i] = 0; // unreachable, or already at the target cell
+            entity_vy[i] = 0;
+            continue;
         }
-        int32_t py = entity_y[i] >> 16;
-        if (py < 0) {
-            entity_y[i] = 0;
-            entity_vy[i] = -entity_vy[i];
-        } else if (py >= FB_HEIGHT) {
-            entity_y[i] = (int32_t)(FB_HEIGHT - 1) << 16;
-            entity_vy[i] = -entity_vy[i];
-        }
+        int32_t target_px = (int32_t)(next_gx * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
+        int32_t target_py = (int32_t)(next_gy * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
+        entity_vx[i] = clamp_step(target_px - entity_x[i], ENTITY_SPEED);
+        entity_vy[i] = clamp_step(target_py - entity_y[i], ENTITY_SPEED);
     }
+    entity_update_all();
 }
 
-// One full frame: background, every alive entity, then the cursor on top.
-// A full clear + redraw each tick (rather than erase-by-old-position) is
-// the only sane option once thousands of entities can overlap the same
-// pixel.
+// Diagnostic only: since walls in this layout never fully block a path (see
+// setup_wall()), an idle entity (vx==vy==0) has reached the target cell,
+// not gotten stuck -- a growing count here over time is the empirical
+// "entities actually path to the center" evidence, since there's no
+// display to look at over a serial connection.
+static uint32_t entities_arrived(void) {
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < entity_count; i++) {
+        if (entity_alive[i] && entity_vx[i] == 0 && entity_vy[i] == 0) {
+            n++;
+        }
+    }
+    return n;
+}
+
+// One full frame: background, walls, every alive entity, then the cursor
+// on top. A full clear + redraw each tick (rather than erase-by-old-
+// position) is the only sane option once thousands of entities can overlap
+// the same pixel.
 static void render_frame(int cursor_x, int cursor_y) {
     framebuffer_fill(BG_COLOR);
+    draw_walls();
     for (uint32_t i = 0; i < entity_count; i++) {
         if (!entity_alive[i]) {
             continue;
@@ -127,6 +205,10 @@ void kmain(void) {
 
     alloc_init();
     entity_soa_init();
+    flowfield_init();
+    setup_wall();
+    flowfield_build(TARGET_GX, TARGET_GY);
+    uart_puts("Phase 8: flow field built toward city center\n");
 
     int fb_ok = framebuffer_init();
     int cursor_x = FB_WIDTH / 2 - CURSOR_SIZE / 2;
@@ -147,9 +229,9 @@ void kmain(void) {
         uart_puts("test pattern drawn\n");
 
         spawn_dummy_entities();
-        uart_puts("Phase 7: spawned ");
+        uart_puts("Phase 8: spawned ");
         print_dec64(entity_count);
-        uart_puts(" dummy entities\n");
+        uart_puts(" entities at screen edges, pathing around the wall\n");
         uart_puts("Phase 6: WASD to move the cursor\n");
     }
 
@@ -168,6 +250,8 @@ void kmain(void) {
             print_dec64(ticks);
             uart_puts(", frames = ");
             print_dec64(frame_count);
+            uart_puts(", arrived = ");
+            print_dec64(entities_arrived());
             uart_putc('\n');
             last_reported = ticks;
         }

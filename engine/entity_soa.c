@@ -41,3 +41,20 @@ void entity_update_all(void) {
         entity_y[i] += entity_vy[i];
     }
 }
+
+void entity_kill(uint32_t index) {
+    if (index >= entity_count) {
+        return;
+    }
+    uint32_t last = entity_count - 1;
+    if (index != last) {
+        entity_x[index] = entity_x[last];
+        entity_y[index] = entity_y[last];
+        entity_vx[index] = entity_vx[last];
+        entity_vy[index] = entity_vy[last];
+        entity_hp[index] = entity_hp[last];
+        entity_type[index] = entity_type[last];
+        entity_alive[index] = entity_alive[last];
+    }
+    entity_count--;
+}

@@ -19,7 +19,7 @@ int main(void) {
     void *aligned64 = bump_alloc(1, 64);
     assert(((uintptr_t)aligned64 % 64) == 0);
 
-    void *huge = bump_alloc(2u * 1024 * 1024, 4); // bigger than the whole arena
+    void *huge = bump_alloc(32u * 1024 * 1024, 4); // bigger than the whole arena
     assert(huge == (void *)0);
 
     printf("test_alloc: OK\n");

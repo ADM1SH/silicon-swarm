@@ -1,15 +1,19 @@
 #ifndef GAME_INPUT_H
 #define GAME_INPUT_H
 
-// UART key polling -> game action mapping (Phase 6). Discrete keypresses
-// only for v1, no key-repeat/hold semantics.
+// UART key polling -> game action mapping (Phase 6, extended in Phase 11
+// for build-phase tool selection/placement). Discrete keypresses only for
+// v1, no key-repeat/hold semantics.
 typedef enum {
     INPUT_NONE = 0,
     INPUT_UP,
     INPUT_DOWN,
     INPUT_LEFT,
     INPUT_RIGHT,
-    INPUT_CONFIRM,
+    INPUT_PLACE,          // space -- place the selected tool at the cursor
+    INPUT_START,          // enter/return -- start the siege
+    INPUT_TOOL_BARRICADE, // '1'
+    INPUT_TOOL_TURRET,    // '2'
 } input_action_t;
 
 // Non-blocking. Returns INPUT_NONE if no byte was pending or the byte read

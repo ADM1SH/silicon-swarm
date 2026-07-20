@@ -20,9 +20,14 @@ input_action_t input_poll(void) {
     case 'D':
         return INPUT_RIGHT;
     case ' ':
+        return INPUT_PLACE;
     case '\r':
     case '\n':
-        return INPUT_CONFIRM;
+        return INPUT_START;
+    case '1':
+        return INPUT_TOOL_BARRICADE;
+    case '2':
+        return INPUT_TOOL_TURRET;
     default:
         return INPUT_NONE;
     }

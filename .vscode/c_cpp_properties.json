@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "aarch64-none-elf",
+            "includePath": [
+                "${workspaceFolder}"
+            ],
+            "compilerPath": "/opt/homebrew/opt/llvm/bin/clang",
+            "compilerArgs": [
+                "-target",
+                "aarch64-none-elf",
+                "-ffreestanding",
+                "-nostdlib",
+                "-mcpu=cortex-a72"
+            ],
+            "cStandard": "c11",
+            "intelliSenseMode": "clang-arm64"
+        }
+    ],
+    "version": 4
+}

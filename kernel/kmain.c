@@ -1,3 +1,4 @@
+#include "engine/blit_neon.h"
 #include "engine/entity_soa.h"
 #include "engine/flowfield.h"
 #include "game/input.h"
@@ -15,7 +16,7 @@
 #define ENTITY_COLOR 0x0060C0FFu
 #define WALL_COLOR 0x00802020u
 #define BG_COLOR 0x00101018u
-#define NUM_DUMMY_ENTITIES 10000
+#define NUM_DUMMY_ENTITIES 1000000
 #define ENTITY_SPEED (2 << 16) // 2 px/tick in Q16.16, toward the next flow-field cell
 
 // City center: the flow field's target. A wall sits just to its left, wide
@@ -130,10 +131,20 @@ static int32_t clamp_step(int32_t delta, int32_t max_step) {
     return delta;
 }
 
-// Per-entity steering is a fixed O(1) flowfield_step() lookup -- no search,
-// so cost doesn't grow with obstacle count (see tests/test_flowfield.c and
-// README's Phase 8 note). engine/entity_soa.c's entity_update_all() then
-// applies the velocities this computes, same as Phase 7.
+// Per-entity steering is a fixed O(1) flowfield_step() lookup -- no
+// search, so cost doesn't grow with obstacle count (see
+// tests/test_flowfield.c and README's Phase 8 note). This part is
+// inherently scalar: each entity reads a different, unpredictable grid
+// cell, so there's no sequential access pattern for NEON to exploit
+// (would need gather loads -- SVE, not base NEON).
+//
+// Applying the resulting velocities is the opposite case -- a uniform
+// pass over contiguous SoA arrays -- so that part calls the Phase 9 NEON
+// primitive (engine/blit_neon.S) instead of entity_soa.c's scalar
+// entity_update_all(). Unlike that scalar version, this skips the
+// per-element alive check; harmless today since nothing dies until Phase
+// 10, at which point dead entities should be compacted out of
+// [0, entity_count) rather than reintroducing a branch into this loop.
 static void entity_tick(void) {
     for (uint32_t i = 0; i < entity_count; i++) {
         if (!entity_alive[i]) {
@@ -153,7 +164,7 @@ static void entity_tick(void) {
         entity_vx[i] = clamp_step(target_px - entity_x[i], ENTITY_SPEED);
         entity_vy[i] = clamp_step(target_py - entity_y[i], ENTITY_SPEED);
     }
-    entity_update_all();
+    entity_update_positions_neon(entity_x, entity_y, entity_vx, entity_vy, entity_count);
 }
 
 // Diagnostic only: since walls in this layout never fully block a path (see

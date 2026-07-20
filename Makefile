@@ -8,13 +8,13 @@ ELF      := $(BUILD)/silicon_swarm.elf
 IMG      := $(BUILD)/silicon_swarm.img
 
 CFLAGS   := -target $(TARGET) -ffreestanding -nostdlib -mcpu=cortex-a72 \
-            -std=c11 -Wall -Wextra -O2 -g -I.
+            -std=c11 -Wall -Wextra -O2 -g -I. -MMD -MP
 ASFLAGS  := -target $(TARGET) -ffreestanding -nostdlib -mcpu=cortex-a72 -g
 
 QEMU     := qemu-system-aarch64
 QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
 
-S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S
+S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S engine/blit_neon.S
 C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c kernel/alloc.c game/input.c engine/entity_soa.c engine/flowfield.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
@@ -63,3 +63,9 @@ test-host:
 
 clean:
 	rm -rf $(BUILD) virt.dtb virt.dts
+
+# -MMD -MP (above) emits a .d file per object recording the headers it
+# included; pulling those in is what makes `make build` actually notice a
+# header-only change like a struct or #define edit, instead of silently
+# relinking stale objects.
+-include $(OBJS:.o=.d)

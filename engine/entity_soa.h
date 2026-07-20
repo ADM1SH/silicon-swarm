@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAX_ENTITIES 10000
+#define MAX_ENTITIES 1200000
 
 // Q16.16 fixed-point: bits [31:16] are the integer part, [15:0] the
 // fraction. 1 world unit == 1 framebuffer pixel, so straight-line motion

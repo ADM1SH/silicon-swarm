@@ -10,6 +10,7 @@
 // RAMFBCfg struct (address/format/dimensions of our framebuffer) into that
 // file, which is QEMU's signal to start scanning our buffer out to the
 // display.
+#include "engine/blit_neon.h"
 #include "kernel/framebuffer.h"
 #include "kernel/uart.h"
 
@@ -164,9 +165,7 @@ void framebuffer_set_pixel(int x, int y, uint32_t color) {
 }
 
 void framebuffer_fill(uint32_t color) {
-    for (int i = 0; i < FB_WIDTH * FB_HEIGHT; i++) {
-        g_framebuffer[i] = color;
-    }
+    neon_fill32(g_framebuffer, color, (uint32_t)(FB_WIDTH * FB_HEIGHT));
 }
 
 void framebuffer_flush(void) {

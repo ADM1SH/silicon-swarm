@@ -15,7 +15,7 @@ QEMU     := qemu-system-aarch64
 QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
 
 S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S
-C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c game/input.c
+C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c kernel/alloc.c game/input.c engine/entity_soa.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
 
@@ -49,6 +49,15 @@ debug: $(IMG)
 dumpdtb:
 	$(QEMU) -M virt,dumpdtb=virt.dtb -cpu host
 	dtc -I dtb -O dts virt.dtb -o virt.dts
+
+# Host-side unit tests for the hardware-independent engine/ modules (README
+# "Testing strategy") -- plain host clang, no -target/-ffreestanding, no QEMU.
+test-host:
+	@mkdir -p $(BUILD)
+	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_entity_soa tests/test_entity_soa.c engine/entity_soa.c
+	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_alloc tests/test_alloc.c kernel/alloc.c
+	$(BUILD)/test_entity_soa
+	$(BUILD)/test_alloc
 
 clean:
 	rm -rf $(BUILD) virt.dtb virt.dts

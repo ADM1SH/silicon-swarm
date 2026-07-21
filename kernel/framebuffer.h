@@ -3,12 +3,16 @@
 
 #include <stdint.h>
 
-#define FB_WIDTH 640
-#define FB_HEIGHT 480
+#define FB_WIDTH 1280
+#define FB_HEIGHT 720
 
 // Negotiates ramfb through fw_cfg DMA. Returns 1 on success, 0 if "etc/ramfb"
 // isn't present in the fw_cfg file directory (prints a diagnostic either way).
 int framebuffer_init(void);
+
+// Raw pixel array (FB_WIDTH * FB_HEIGHT, row-major) — for renderers that
+// fill whole spans via neon_fill32 instead of per-pixel calls.
+uint32_t *framebuffer_pixels(void);
 
 // x,y in pixels; color is 0x00RRGGBB.
 void framebuffer_set_pixel(int x, int y, uint32_t color);

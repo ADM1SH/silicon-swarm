@@ -1,14 +1,3 @@
-# Build outputs
-*.o
-*.d
-*.elf
-*.img
-*.bin
-*.map
-
-# Device tree dumps (regenerate via `make dumpdtb`)
-*.dtb
-*.dts
-
-# macOS
-.DS_Store
+build/
+virt.dtb
+virt.dts

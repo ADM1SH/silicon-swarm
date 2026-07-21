@@ -157,6 +157,10 @@ int framebuffer_init(void) {
     return 1;
 }
 
+uint32_t *framebuffer_pixels(void) {
+    return g_framebuffer;
+}
+
 void framebuffer_set_pixel(int x, int y, uint32_t color) {
     if ((unsigned)x >= FB_WIDTH || (unsigned)y >= FB_HEIGHT) {
         return;

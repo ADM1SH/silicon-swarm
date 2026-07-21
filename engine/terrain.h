@@ -19,8 +19,14 @@
 extern uint8_t world_height[WORLD_H + 1][WORLD_W + 1];
 
 void terrain_init(void);
-void terrain_render(int cam_x, int cam_y);
+
+// cur_gx/cur_gy: tile to draw highlighted as the cursor (-1,-1 for none).
+void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy);
 
 // Relax the heightmap so orthogonally adjacent corners differ by <= 1 unit
 // (the RCT slope rule). Call after any bulk height edit.
 void terrain_enforce_slope(void);
+
+// RCT terraforming: shift tile (gx, gy)'s four corners by delta (+1/-1),
+// clamped to [0, MAX_HEIGHT], propagating so the slope rule still holds.
+void terrain_edit_tile(int gx, int gy, int delta);

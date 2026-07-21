@@ -17,8 +17,6 @@
 #include "kernel/timer.h"
 #include "kernel/uart.h"
 
-#define CAM_STEP 32 // px per pan keypress
-
 static void print_dec64(uint64_t v) {
     char buf[20];
     int i = 0;
@@ -59,14 +57,10 @@ void kmain(void) {
     int fb_ok = framebuffer_init();
     terrain_init();
 
-    // Center the camera on the middle of the world (the city plateau),
-    // accounting for the plateau's actual surface height.
-    int cam_x = ((WORLD_W / 2 - WORLD_H / 2) * (TILE_W / 2)) - FB_WIDTH / 2;
-    int cam_y = ((WORLD_W / 2 + WORLD_H / 2) * (TILE_H / 2)) -
-                world_height[WORLD_H / 2][WORLD_W / 2] * ELEV_STEP - FB_HEIGHT / 2;
+    int cur_gx = WORLD_W / 2, cur_gy = WORLD_H / 2;
 
     if (fb_ok) {
-        uart_puts("v2 Phase 1: ISO TERRAIN -- WASD pans the camera\n");
+        uart_puts("v2 Phase 2: ISO TERRAIN -- WASD moves cursor, q/e raise/lower\n");
     }
 
     uint64_t last_reported = 0;
@@ -91,16 +85,22 @@ void kmain(void) {
             input_action_t action = input_poll();
             switch (action) {
             case INPUT_UP:
-                cam_y -= CAM_STEP;
+                if (cur_gy > 0) cur_gy--;
                 break;
             case INPUT_DOWN:
-                cam_y += CAM_STEP;
+                if (cur_gy < WORLD_H - 1) cur_gy++;
                 break;
             case INPUT_LEFT:
-                cam_x -= CAM_STEP;
+                if (cur_gx > 0) cur_gx--;
                 break;
             case INPUT_RIGHT:
-                cam_x += CAM_STEP;
+                if (cur_gx < WORLD_W - 1) cur_gx++;
+                break;
+            case INPUT_RAISE:
+                terrain_edit_tile(cur_gx, cur_gy, +1);
+                break;
+            case INPUT_LOWER:
+                terrain_edit_tile(cur_gx, cur_gy, -1);
                 break;
             default:
                 break;
@@ -108,9 +108,14 @@ void kmain(void) {
 
             if (ticks != last_frame_tick) {
                 last_frame_tick = ticks;
+                // Camera keeps the cursor tile centered (simplest follow;
+                // free panning went away with v1 -- the cursor IS the view).
+                int cam_x = ((cur_gx - cur_gy) * (TILE_W / 2)) - FB_WIDTH / 2;
+                int cam_y = ((cur_gx + cur_gy) * (TILE_H / 2)) -
+                            world_height[cur_gy][cur_gx] * ELEV_STEP - FB_HEIGHT / 2;
                 uint64_t render_t0 = perf_cycles();
                 framebuffer_fill(0x00101018);
-                terrain_render(cam_x, cam_y);
+                terrain_render(cam_x, cam_y, cur_gx, cur_gy);
                 framebuffer_flush();
                 last_render_cycles = perf_cycles() - render_t0;
                 frame_count++;

@@ -14,6 +14,8 @@ typedef enum {
     INPUT_START,          // enter/return -- start the siege
     INPUT_TOOL_BARRICADE, // '1'
     INPUT_TOOL_TURRET,    // '2'
+    INPUT_RAISE,          // 'q' -- raise terrain under the cursor (v2)
+    INPUT_LOWER,          // 'e' -- lower terrain under the cursor (v2)
 } input_action_t;
 
 // Non-blocking. Returns INPUT_NONE if no byte was pending or the byte read

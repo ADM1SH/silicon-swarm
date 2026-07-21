@@ -28,6 +28,12 @@ input_action_t input_poll(void) {
         return INPUT_TOOL_BARRICADE;
     case '2':
         return INPUT_TOOL_TURRET;
+    case 'q':
+    case 'Q':
+        return INPUT_RAISE;
+    case 'e':
+    case 'E':
+        return INPUT_LOWER;
     default:
         return INPUT_NONE;
     }

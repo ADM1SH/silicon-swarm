@@ -42,36 +42,62 @@ static int noise_height(int cx, int cy) {
 // what guarantees a tile's projected quad never folds over itself (max
 // corner offset ELEV_STEP <= TILE_H/2), so the rasterizer needs no
 // concave-quad handling.
-void terrain_enforce_slope(void) {
+// mode +1: raise the LOWER side of a too-steep pair (converges upward,
+// preserves peaks — used by init and raise edits). mode -1: lower the
+// HIGHER side (used by lower edits, so pulling one tile down drags its
+// neighbors down instead of the edit being relaxed away).
+static void relax_dir(int mode) {
     int changed = 1;
     while (changed) {
         changed = 0;
         for (int cy = 0; cy <= WORLD_H; cy++) {
             for (int cx = 0; cx <= WORLD_W; cx++) {
-                // Raise the LOWER side of a too-steep pair: converges upward,
-                // preserving peaks and terracing cliffs (lowering instead
-                // cascades from every local minimum and flattens the map).
                 int h = world_height[cy][cx];
                 if (cx < WORLD_W && world_height[cy][cx + 1] > h + 1) {
-                    world_height[cy][cx] = (uint8_t)(world_height[cy][cx + 1] - 1);
+                    if (mode > 0) world_height[cy][cx] = (uint8_t)(world_height[cy][cx + 1] - 1);
+                    else world_height[cy][cx + 1] = (uint8_t)(h + 1);
                     changed = 1;
                 }
                 if (cx < WORLD_W && world_height[cy][cx + 1] < h - 1) {
-                    world_height[cy][cx + 1] = (uint8_t)(h - 1);
+                    if (mode > 0) world_height[cy][cx + 1] = (uint8_t)(h - 1);
+                    else world_height[cy][cx] = (uint8_t)(world_height[cy][cx + 1] + 1);
                     changed = 1;
                 }
                 h = world_height[cy][cx];
                 if (cy < WORLD_H && world_height[cy + 1][cx] > h + 1) {
-                    world_height[cy][cx] = (uint8_t)(world_height[cy + 1][cx] - 1);
+                    if (mode > 0) world_height[cy][cx] = (uint8_t)(world_height[cy + 1][cx] - 1);
+                    else world_height[cy + 1][cx] = (uint8_t)(h + 1);
                     changed = 1;
                 }
                 if (cy < WORLD_H && world_height[cy + 1][cx] < h - 1) {
-                    world_height[cy + 1][cx] = (uint8_t)(h - 1);
+                    if (mode > 0) world_height[cy + 1][cx] = (uint8_t)(h - 1);
+                    else world_height[cy][cx] = (uint8_t)(world_height[cy + 1][cx] + 1);
                     changed = 1;
                 }
             }
         }
     }
+}
+
+void terrain_enforce_slope(void) {
+    relax_dir(+1);
+}
+
+// Raise (delta +1) or lower (delta -1) all four corners of tile (gx, gy),
+// then propagate so the slope rule keeps holding — RCT terraforming.
+void terrain_edit_tile(int gx, int gy, int delta) {
+    if (gx < 0 || gx >= WORLD_W || gy < 0 || gy >= WORLD_H) {
+        return;
+    }
+    for (int dy = 0; dy <= 1; dy++) {
+        for (int dx = 0; dx <= 1; dx++) {
+            int h = world_height[gy + dy][gx + dx] + delta;
+            if (h < 0) h = 0;
+            if (h > MAX_HEIGHT) h = MAX_HEIGHT;
+            world_height[gy + dy][gx + dx] = (uint8_t)h;
+        }
+    }
+    relax_dir(delta > 0 ? +1 : -1);
 }
 
 void terrain_init(void) {
@@ -162,7 +188,7 @@ static uint32_t shade(uint32_t c, int s) {
     return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
-void terrain_render(int cam_x, int cam_y) {
+void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy) {
     // ponytail: full repaint every frame; dirty-rect tracking if profiling
     // ever shows terrain fill dominating (Phase 6 will measure).
     for (int d = 0; d <= (WORLD_W - 1) + (WORLD_H - 1); d++) {
@@ -203,6 +229,9 @@ void terrain_render(int cam_x, int cam_y) {
             // West-east slope tilts brightness: light from the west.
             int slope = (h00 + h01) - (h10 + h11);
             uint32_t color = shade(height_ramp[havg], 64 + slope * 10);
+            if (gx == cur_gx && gy == cur_gy) {
+                color = 0x00FFE060; // cursor highlight, drawn in painter's order
+            }
 
             fill_tri(nx, ny, ex, ey, sx, sy, color);
             fill_tri(nx, ny, sx, sy, wx, wy, color);

@@ -47,15 +47,29 @@ int main(void) {
     int cams[][2] = {{-640, 300}, {0, 0}, {-100000, -100000}, {100000, 100000}, {-640, 900}};
     for (unsigned i = 0; i < sizeof(cams) / sizeof(cams[0]); i++) {
         memset(fb, 0, sizeof(fb));
-        terrain_render(cams[i][0], cams[i][1]);
+        terrain_render(cams[i][0], cams[i][1], -1, -1);
         for (int g = 0; g < GUARD; g++) {
             assert(fb[g] == 0);
             assert(fb[GUARD + FB_WIDTH * FB_HEIGHT + g] == 0);
         }
     }
+    // Terraform edits keep the slope invariant in both directions.
+    for (int i = 0; i < 5; i++) terrain_edit_tile(WORLD_W / 2, WORLD_H / 2, +1);
+    for (int i = 0; i < 9; i++) terrain_edit_tile(WORLD_W / 2 + 3, WORLD_H / 2, -1);
+    terrain_edit_tile(0, 0, -1);
+    terrain_edit_tile(WORLD_W - 1, WORLD_H - 1, +1);
+    for (int cy = 0; cy <= WORLD_H; cy++) {
+        for (int cx = 0; cx <= WORLD_W; cx++) {
+            int h = world_height[cy][cx];
+            if (cx < WORLD_W) assert(h - world_height[cy][cx + 1] >= -1 && h - world_height[cy][cx + 1] <= 1);
+            if (cy < WORLD_H) assert(h - world_height[cy + 1][cx] >= -1 && h - world_height[cy + 1][cx] <= 1);
+        }
+    }
+
     memset(fb, 0, sizeof(fb));
     terrain_render((WORLD_W / 2 - WORLD_H / 2) * (TILE_W / 2) - FB_WIDTH / 2,
-                   (WORLD_W / 2 + WORLD_H / 2) * (TILE_H / 2) - FB_HEIGHT / 2);
+                   (WORLD_W / 2 + WORLD_H / 2) * (TILE_H / 2) - FB_HEIGHT / 2,
+                   WORLD_W / 2, WORLD_H / 2);
     int painted = 0;
     for (int i = 0; i < FB_WIDTH * FB_HEIGHT; i++) {
         painted += (fb[GUARD + i] != 0);

@@ -40,7 +40,27 @@ input_action_t input_poll(void) {
     case '3':
         return INPUT_TOOL_ROAD;
     case '4':
-        return INPUT_TOOL_HOUSE;
+        return INPUT_TOOL_AVENUE;
+    case '5':
+        return INPUT_TOOL_ZONE_R;
+    case '6':
+        return INPUT_TOOL_ZONE_C;
+    case '7':
+        return INPUT_TOOL_ZONE_I;
+    case '8':
+        return INPUT_TOOL_WATCHTOWER;
+    case '9':
+        return INPUT_TOOL_GRANARY;
+    case '0':
+        return INPUT_TOOL_BARRACKS;
+    case 't':
+    case 'T':
+        return INPUT_TAX_CYCLE;
+    case '-':
+        return INPUT_TAX_DOWN;
+    case '=':
+    case '+':
+        return INPUT_TAX_UP;
     case 'x':
     case 'X':
         return INPUT_DEMOLISH;

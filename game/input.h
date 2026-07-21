@@ -17,9 +17,18 @@ typedef enum {
     INPUT_RAISE,          // 'q' -- raise terrain under the cursor (v2)
     INPUT_LOWER,          // 'e' -- lower terrain under the cursor (v2)
     INPUT_TOOL_ROAD,      // '3' (v2)
-    INPUT_TOOL_HOUSE,     // '4' (v2)
     INPUT_DEMOLISH,       // 'x' (v2)
     INPUT_ROTATE,         // 'r' -- rotate the view 90 degrees (v3)
+    INPUT_TOOL_AVENUE,     // '4' (v4)
+    INPUT_TOOL_ZONE_R,     // '5' (v4)
+    INPUT_TOOL_ZONE_C,     // '6' (v4)
+    INPUT_TOOL_ZONE_I,     // '7' (v4)
+    INPUT_TOOL_WATCHTOWER, // '8' (v4)
+    INPUT_TOOL_GRANARY,    // '9' (v4)
+    INPUT_TOOL_BARRACKS,   // '0' (v4)
+    INPUT_TAX_CYCLE,       // 't' -- select which tax slider (R/C/I) (v4)
+    INPUT_TAX_DOWN,        // '-' (v4)
+    INPUT_TAX_UP,          // '=' (v4)
 } input_action_t;
 
 // Non-blocking. Returns INPUT_NONE if no byte was pending or the byte read

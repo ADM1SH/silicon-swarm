@@ -71,15 +71,32 @@ static void spawn_attackers(void) {
     }
 }
 
-static void spawn_turret_defenders(void) {
+// Turrets and watchtowers fight; each barracks raises militia from the
+// population (city growth IS combat strength).
+#define MILITIA_HP 10
+#define MILITIA_PER_BARRACKS_CAP 40
+static void spawn_defenders(void) {
+    int32_t militia_pool = city_pop / 4;
     for (int gy = 0; gy < WORLD_H; gy++) {
         for (int gx = 0; gx < WORLD_W; gx++) {
-            if (world_tile[gy][gx] != CITY_TURRET) {
-                continue;
+            uint8_t t = world_tile[gy][gx];
+            int32_t cx = (int32_t)(gx * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
+            int32_t cy = (int32_t)(gy * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
+            if (t == CITY_TURRET) {
+                entity_spawn(cx, cy, 0, 0, DEFENDER_HP, ENTITY_TYPE_DEFENDER);
+            } else if (t == CITY_WATCHTOWER) {
+                entity_spawn(cx, cy, 0, 0, DEFENDER_HP * 2, ENTITY_TYPE_DEFENDER);
+            } else if (t == CITY_BARRACKS) {
+                int n = militia_pool < MILITIA_PER_BARRACKS_CAP ? militia_pool
+                                                                : MILITIA_PER_BARRACKS_CAP;
+                militia_pool -= n;
+                for (int k = 0; k < n; k++) {
+                    // Ring around the barracks tile, in the open.
+                    int32_t ox = ((k % 8) - 4) * 6 << 16;
+                    int32_t oy = ((k / 8) - n / 16) * 6 << 16;
+                    entity_spawn(cx + ox, cy + oy, 0, 0, MILITIA_HP, ENTITY_TYPE_DEFENDER);
+                }
             }
-            int32_t x = (int32_t)(gx * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
-            int32_t y = (int32_t)(gy * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
-            entity_spawn(x, y, 0, 0, DEFENDER_HP, ENTITY_TYPE_DEFENDER);
         }
     }
 }
@@ -88,9 +105,8 @@ static void spawn_turret_defenders(void) {
 static void build_cost_from_city(void) {
     for (int gy = 0; gy < WORLD_H; gy++) {
         for (int gx = 0; gx < WORLD_W; gx++) {
-            uint8_t t = world_tile[gy][gx];
             flowfield_cost[gy][gx] =
-                (t == CITY_HOUSE || t == CITY_BARRICADE || t == CITY_TURRET ||
+                (city_tile_solid(world_tile[gy][gx]) ||
                  terrain_tile_underwater(gx, gy)) ? 255 : 0; // moats work
         }
     }
@@ -103,7 +119,7 @@ void siege_phase_start(int wave) {
     entity_soa_init();
     build_cost_from_city();
     flowfield_build(SIEGE_TARGET_GX, SIEGE_TARGET_GY);
-    spawn_turret_defenders();
+    spawn_defenders();
     spawn_attackers();
     g_core_hp = CORE_HP_START;
 }

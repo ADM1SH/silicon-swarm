@@ -33,22 +33,54 @@ typedef enum {
 static const char *tool_name(city_tile_t t) {
     switch (t) {
     case CITY_ROAD: return "ROAD $5";
-    case CITY_HOUSE: return "HOUSE $20";
+    case CITY_AVENUE: return "AVENUE $15";
     case CITY_BARRICADE: return "WALL $10";
     case CITY_TURRET: return "TURRET $50";
+    case CITY_WATCHTOWER: return "WATCHTOWER $40";
+    case CITY_GRANARY: return "GRANARY $60";
+    case CITY_BARRACKS: return "BARRACKS $80";
+    case CITY_ZONE_R: return "ZONE R $2";
+    case CITY_ZONE_C: return "ZONE C $2";
+    case CITY_ZONE_I: return "ZONE I $2";
     default: return "";
     }
 }
 
-static void render_hud(game_state_t state, city_tile_t sel_tool, int wave) {
+static void hud_signed(int x, int y, int32_t v, uint32_t color) {
+    if (v < 0) {
+        hud_text(x - HUD_CHAR_W, y, "-", color);
+        v = -v;
+    }
+    hud_number(x + 4 * HUD_CHAR_W, y, (uint32_t)v, color);
+}
+
+static void render_hud(game_state_t state, city_tile_t sel_tool, int wave, int tax_sel) {
+    int line = HUD_CHAR_H + 6;
     hud_text(16, 12, "$", 0x00FFE060);
-    hud_number(16 + 6 * HUD_CHAR_W, 12, (uint32_t)(city_money > 0 ? city_money : 0), 0x00FFE060);
+    hud_number(16 + 7 * HUD_CHAR_W, 12, (uint32_t)(city_money > 0 ? city_money : 0), 0x00FFE060);
+    hud_text(16 + 9 * HUD_CHAR_W, 12, "POP", 0x00FFFFFF);
+    hud_number(16 + 18 * HUD_CHAR_W, 12, (uint32_t)city_pop, 0x00FFFFFF);
+    hud_text(16 + 20 * HUD_CHAR_W, 12, "FOOD", 0x00B08040);
+    hud_number(16 + 29 * HUD_CHAR_W, 12, (uint32_t)city_food, 0x00B08040);
     hud_text(FB_WIDTH - 10 * HUD_CHAR_W, 12, "WAVE", 0x00FFFFFF);
     hud_number(FB_WIDTH - 2 * HUD_CHAR_W, 12, (uint32_t)wave, 0x00FFFFFF);
     if (state == GAME_BUILD) {
-        hud_text(16, 12 + HUD_CHAR_H + 6, tool_name(sel_tool), 0x00FFFFFF);
+        hud_text(16, 12 + line, tool_name(sel_tool), 0x00FFFFFF);
+        // RCI demand meters (green = wants growth).
+        static const char *rci = "RCI";
+        for (int i = 0; i < 3; i++) {
+            char lbl[2] = {rci[i], 0};
+            int y = 12 + line * (2 + i);
+            hud_text(16, y, lbl, 0x00A0A0B0);
+            hud_signed(16 + 3 * HUD_CHAR_W, y, city_demand[i],
+                       city_demand[i] > 0 ? 0x0060D060 : 0x00D06060);
+            hud_text(16 + 9 * HUD_CHAR_W, y, i == tax_sel ? "TAX-" : "TAX", 0x00FFFFFF);
+            hud_number(16 + 15 * HUD_CHAR_W, y, (uint32_t)city_tax[i],
+                       i == tax_sel ? 0x00FFE060 : 0x00A0A0B0);
+        }
         hud_text(16, FB_HEIGHT - HUD_CHAR_H - 12,
-                 "WASD MOVE  Q-E TERRAIN  R ROTATE  SPACE PLACE  X RAZE  ENTER SIEGE", 0x00A0A0B0);
+                 "WASD Q-E TERRAIN  R ROTATE  1-0 TOOLS  T TAX  - = RATE  SPACE  X  ENTER SIEGE",
+                 0x00A0A0B0);
     } else {
         uint32_t attackers, defenders;
         siege_phase_counts(&attackers, &defenders);
@@ -152,6 +184,7 @@ void kmain(void) {
     game_state_t state = GAME_BUILD;
     int result_printed = 0;
     int wave = 1;
+    int tax_sel = 0;
 
     if (fb_ok) {
         uart_puts("v2: CITY -- WASD cursor, q/e terrain, 1=barricade 2=turret "
@@ -167,7 +200,7 @@ void kmain(void) {
         uint64_t ticks = timer_get_ticks();
         if (ticks - last_reported >= 60) {
             if (state == GAME_BUILD) {
-                city_income_tick();
+                city_sim_tick();
             }
             uart_puts("tick count = ");
             print_dec64(ticks);
@@ -229,9 +262,42 @@ void kmain(void) {
                     sel_tool = CITY_ROAD;
                     uart_puts("tool: road\n");
                     break;
-                case INPUT_TOOL_HOUSE:
-                    sel_tool = CITY_HOUSE;
-                    uart_puts("tool: house\n");
+                case INPUT_TOOL_AVENUE:
+                    sel_tool = CITY_AVENUE;
+                    uart_puts("tool: avenue\n");
+                    break;
+                case INPUT_TOOL_ZONE_R:
+                    sel_tool = CITY_ZONE_R;
+                    uart_puts("tool: zone R\n");
+                    break;
+                case INPUT_TOOL_ZONE_C:
+                    sel_tool = CITY_ZONE_C;
+                    uart_puts("tool: zone C\n");
+                    break;
+                case INPUT_TOOL_ZONE_I:
+                    sel_tool = CITY_ZONE_I;
+                    uart_puts("tool: zone I\n");
+                    break;
+                case INPUT_TOOL_WATCHTOWER:
+                    sel_tool = CITY_WATCHTOWER;
+                    uart_puts("tool: watchtower\n");
+                    break;
+                case INPUT_TOOL_GRANARY:
+                    sel_tool = CITY_GRANARY;
+                    uart_puts("tool: granary\n");
+                    break;
+                case INPUT_TOOL_BARRACKS:
+                    sel_tool = CITY_BARRACKS;
+                    uart_puts("tool: barracks\n");
+                    break;
+                case INPUT_TAX_CYCLE:
+                    tax_sel = (tax_sel + 1) % 3;
+                    break;
+                case INPUT_TAX_DOWN:
+                    if (city_tax[tax_sel] > 0) city_tax[tax_sel]--;
+                    break;
+                case INPUT_TAX_UP:
+                    if (city_tax[tax_sel] < 20) city_tax[tax_sel]++;
                     break;
                 case INPUT_PLACE:
                     uart_puts(city_place(cur_gx, cur_gy, sel_tool)
@@ -285,6 +351,12 @@ void kmain(void) {
                         uart_puts("SIEGE WON -- bounty paid, back to building\n");
                         entity_soa_init(); // clear surviving defenders
                         state = GAME_BUILD;
+                    } else if (city_food >= 50 + 25 * wave) {
+                        // The granaries hold: spend the stockpile, survive.
+                        city_food -= 50 + 25 * wave;
+                        uart_puts("CORE FELL -- BUT THE GRANARIES HELD. Rebuild.\n");
+                        entity_soa_init();
+                        state = GAME_BUILD;
                     } else {
                         uart_puts("SIEGE LOST -- core destroyed (enter = new game)\n");
                     }
@@ -306,7 +378,7 @@ void kmain(void) {
                 terrain_render(g_cam_x, g_cam_y,
                                state == GAME_BUILD ? cur_gx : -1,
                                state == GAME_BUILD ? cur_gy : -1, tile_overlay);
-                render_hud(state, sel_tool, wave);
+                render_hud(state, sel_tool, wave, tax_sel);
                 framebuffer_flush();
                 last_render_cycles = perf_cycles() - render_t0;
                 frame_count++;

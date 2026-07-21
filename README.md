@@ -42,10 +42,25 @@ make run-gfx`, opening the game in its own window.
   buildings need flat ground, so sculpt first). Digging below the
   waterline makes **water**: it blocks building *and* attacker pathing —
   moats are a real defense
-- `1` barricade $10 (blocks pathing) · `2` turret $50 (shoots, 2.5-tile
-  range) · `3` road $5 · `4` house $20 (earns $2/s **only while touching a
-  road**)
-- Space — place · `x` — demolish (half refund) · Enter — start the siege
+- **Tools (1–0):** `1` barricade $10 · `2` turret $50 · `3` road $5 ·
+  `4` avenue $15 (relieves congestion, boosts growth) · `5`/`6`/`7` paint
+  Residential/Commercial/Industrial **zones** $2 · `8` watchtower $40
+  (fights + lifts land value) · `9` granary $60 (stockpiles food, boosts
+  nearby growth) · `0` barracks $80 (raises militia from population at
+  siege start)
+- **You never place houses.** Zones grow into buildings on their own when
+  they touch a road and their RCI demand meter is positive; buildings
+  upgrade through 3 density tiers gated by population milestones (50/200)
+  and land value. Land value comes from water views, flat terrain,
+  services — and drops near polluting industry.
+- **Taxes:** `t` selects the R/C/I slider, `-`/`=` adjust 0–20%. Higher
+  taxes pay more but suppress demand.
+- Population is the headline number: it rises toward what housing and
+  jobs support, feeds tax income, and staffs your barracks.
+- Space — place/paint · `x` — demolish (buildings revert to their zone) ·
+  Enter — start the siege
+- **If the core falls with a stocked granary, the city survives** (food
+  is spent instead of game over) — granaries are your insurance.
 
 **Siege phase**: automatic. Waves escalate — wave n brings 1000 + 750(n−1)
 attackers with growing HP, and pays a growing bounty. Attackers (blue) spawn at the world edges

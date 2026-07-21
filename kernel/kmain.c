@@ -6,6 +6,7 @@
 #include "engine/spatial_hash.h"
 #include "engine/terrain.h"
 #include "game/city.h"
+#include "game/hud.h"
 #include "game/input.h"
 #include "game/siege_phase.h"
 #include "kernel/alloc.h"
@@ -27,6 +28,40 @@ typedef enum {
     GAME_WON, // transient: pays the bounty, returns to GAME_BUILD
     GAME_LOST,
 } game_state_t;
+
+static const char *tool_name(city_tile_t t) {
+    switch (t) {
+    case CITY_ROAD: return "ROAD $5";
+    case CITY_HOUSE: return "HOUSE $20";
+    case CITY_BARRICADE: return "WALL $10";
+    case CITY_TURRET: return "TURRET $50";
+    default: return "";
+    }
+}
+
+static void render_hud(game_state_t state, city_tile_t sel_tool) {
+    hud_text(16, 12, "$", 0x00FFE060);
+    hud_number(16 + 6 * HUD_CHAR_W, 12, (uint32_t)(city_money > 0 ? city_money : 0), 0x00FFE060);
+    if (state == GAME_BUILD) {
+        hud_text(16, 12 + HUD_CHAR_H + 6, tool_name(sel_tool), 0x00FFFFFF);
+        hud_text(16, FB_HEIGHT - HUD_CHAR_H - 12,
+                 "WASD MOVE  Q-E TERRAIN  SPACE PLACE  X RAZE  ENTER SIEGE", 0x00A0A0B0);
+    } else {
+        uint32_t attackers, defenders;
+        siege_phase_counts(&attackers, &defenders);
+        int32_t hp = siege_phase_core_hp();
+        hud_text(16, 12 + HUD_CHAR_H + 6, "CORE HP", 0x0040FF40);
+        hud_number(16 + 11 * HUD_CHAR_W, 12 + HUD_CHAR_H + 6, (uint32_t)(hp > 0 ? hp : 0), 0x0040FF40);
+        hud_text(16, 12 + 2 * (HUD_CHAR_H + 6), "FOES", 0x0060C0FF);
+        hud_number(16 + 11 * HUD_CHAR_W, 12 + 2 * (HUD_CHAR_H + 6), attackers, 0x0060C0FF);
+    }
+    if (state == GAME_LOST) {
+        hud_text(FB_WIDTH / 2 - 13 * HUD_CHAR_W, FB_HEIGHT / 2 - HUD_CHAR_H,
+                 "THE CITY HAS FALLEN", 0x00FF5050);
+        hud_text(FB_WIDTH / 2 - 13 * HUD_CHAR_W, FB_HEIGHT / 2 + 6,
+                 "PRESS ENTER - NEW GAME", 0x00FFFFFF);
+    }
+}
 
 static void print_dec64(uint64_t v) {
     char buf[20];
@@ -238,6 +273,7 @@ void kmain(void) {
                 if (state != GAME_BUILD) {
                     render_entities(cam_x, cam_y);
                 }
+                render_hud(state, sel_tool);
                 framebuffer_flush();
                 last_render_cycles = perf_cycles() - render_t0;
                 frame_count++;

@@ -41,7 +41,7 @@ run: $(IMG)
 	$(QEMU) $(QFLAGS) -nographic -kernel $(IMG)
 
 run-gfx: $(IMG)
-	$(QEMU) $(QFLAGS) -device ramfb -display cocoa -kernel $(IMG)
+	$(QEMU) $(QFLAGS) -device ramfb -display cocoa -serial stdio -kernel $(IMG)
 
 debug: $(IMG)
 	$(QEMU) $(QFLAGS) -nographic -kernel $(IMG) -s -S

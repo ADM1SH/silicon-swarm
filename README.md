@@ -21,6 +21,12 @@ verified.
 Double-click it in Finder, or run it from a terminal — it's `make build &&
 make run-gfx`, opening the game in its own window.
 
+> **Type into the terminal window, not the game window.** Input reaches the
+> game over the serial port (`-serial stdio`), so keystrokes go into the
+> terminal that launched QEMU — the one printing the boot log — while the
+> graphical window just displays the game. Keys pressed in the graphical
+> window go nowhere (there is no virtual keyboard device).
+
 **Build phase** (starts immediately): WASD moves the white cursor one grid
 cell at a time.
 - `1` — select barricade (dark red; blocks pathing, doesn't fight)

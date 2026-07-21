@@ -21,6 +21,7 @@
 #define BARRICADE_COLOR 0x00802020u
 #define CORE_COLOR 0x0040FF40u
 #define BG_COLOR 0x00101018u
+#define GRID_COLOR 0x00202030u
 
 typedef enum {
     GAME_BUILD,
@@ -85,8 +86,25 @@ static void draw_tiles(void) {
     }
 }
 
+// Faint cell grid, build phase only. The first build frame used to be near
+// solid black (background + one core tile), which players reported as a
+// "blank window" -- the grid makes the play field visibly present.
+static void draw_grid_lines(void) {
+    for (int y = 0; y < FB_HEIGHT; y += FLOWFIELD_CELL_SIZE) {
+        for (int x = 0; x < FB_WIDTH; x++) {
+            framebuffer_set_pixel(x, y, GRID_COLOR);
+        }
+    }
+    for (int x = 0; x < FB_WIDTH; x += FLOWFIELD_CELL_SIZE) {
+        for (int y = 0; y < FB_HEIGHT; y++) {
+            framebuffer_set_pixel(x, y, GRID_COLOR);
+        }
+    }
+}
+
 static void render_build_frame(int cursor_x, int cursor_y) {
     framebuffer_fill(BG_COLOR);
+    draw_grid_lines();
     draw_tiles();
     draw_cursor(cursor_x, cursor_y, CURSOR_COLOR);
     framebuffer_flush();

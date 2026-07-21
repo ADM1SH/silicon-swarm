@@ -5,20 +5,27 @@
 #include "engine/entity_soa.h"
 #include "engine/flowfield.h"
 #include "engine/spatial_hash.h"
-#include "game/build_phase.h"
+#include "game/city.h"
 #include "kernel/perf.h"
+
+// Entity coordinates are Q16.16 "world units": FLOWFIELD_CELL_SIZE (16)
+// units per world tile, so unit -> tile is a >>4 after the >>16.
+#define WORLD_UNITS_W (WORLD_W * FLOWFIELD_CELL_SIZE)
+#define WORLD_UNITS_H (WORLD_H * FLOWFIELD_CELL_SIZE)
 
 #define ENTITY_TYPE_ATTACKER 0
 #define ENTITY_TYPE_DEFENDER 1
 
 #define NUM_ATTACKERS 2000
 #define ATTACKER_HP 4
-#define DEFENDER_HP 10
+#define DEFENDER_HP 40
 #define ENTITY_SPEED (2 << 16) // 2 px/tick in Q16.16
-#define COMBAT_RANGE_PX 10
+#define COMBAT_RANGE_PX 10 // attacker melee reach (world units)
 #define COMBAT_RANGE_SQ (COMBAT_RANGE_PX * COMBAT_RANGE_PX)
+#define TURRET_RANGE 40 // defenders shoot: ~2.5 tiles (3x3 hash cells caps this at 48)
+#define TURRET_RANGE_SQ (TURRET_RANGE * TURRET_RANGE)
 #define COMBAT_DAMAGE 2
-#define CORE_HP_START 20
+#define CORE_HP_START 60
 #define CORE_DAMAGE_PER_HIT 2
 
 // Multi-cell-deep spawn band, not a single pixel row/column -- see Phase
@@ -42,21 +49,21 @@ static void spawn_attackers(void) {
     for (int i = 0; i < NUM_ATTACKERS; i++) {
         int32_t x, y;
         switch (i % 4) {
-        case 0: // near top edge
-            x = (int32_t)(next_rand() % FB_WIDTH) << 16;
+        case 0: // near north edge
+            x = (int32_t)(next_rand() % WORLD_UNITS_W) << 16;
             y = (int32_t)(next_rand() % EDGE_BAND_PX) << 16;
             break;
-        case 1: // near bottom edge
-            x = (int32_t)(next_rand() % FB_WIDTH) << 16;
-            y = (int32_t)(FB_HEIGHT - 1 - (int32_t)(next_rand() % EDGE_BAND_PX)) << 16;
+        case 1: // near south edge
+            x = (int32_t)(next_rand() % WORLD_UNITS_W) << 16;
+            y = (int32_t)(WORLD_UNITS_H - 1 - (int32_t)(next_rand() % EDGE_BAND_PX)) << 16;
             break;
-        case 2: // near left edge
+        case 2: // near west edge
             x = (int32_t)(next_rand() % EDGE_BAND_PX) << 16;
-            y = (int32_t)(next_rand() % FB_HEIGHT) << 16;
+            y = (int32_t)(next_rand() % WORLD_UNITS_H) << 16;
             break;
-        default: // near right edge
-            x = (int32_t)(FB_WIDTH - 1 - (int32_t)(next_rand() % EDGE_BAND_PX)) << 16;
-            y = (int32_t)(next_rand() % FB_HEIGHT) << 16;
+        default: // near east edge
+            x = (int32_t)(WORLD_UNITS_W - 1 - (int32_t)(next_rand() % EDGE_BAND_PX)) << 16;
+            y = (int32_t)(next_rand() % WORLD_UNITS_H) << 16;
             break;
         }
         entity_spawn(x, y, 0, 0, ATTACKER_HP, ENTITY_TYPE_ATTACKER);
@@ -64,9 +71,9 @@ static void spawn_attackers(void) {
 }
 
 static void spawn_turret_defenders(void) {
-    for (int gy = 0; gy < BUILD_GRID_H; gy++) {
-        for (int gx = 0; gx < BUILD_GRID_W; gx++) {
-            if (city_grid[gy][gx] != TILE_TURRET) {
+    for (int gy = 0; gy < WORLD_H; gy++) {
+        for (int gx = 0; gx < WORLD_W; gx++) {
+            if (world_tile[gy][gx] != CITY_TURRET) {
                 continue;
             }
             int32_t x = (int32_t)(gx * FLOWFIELD_CELL_SIZE + FLOWFIELD_CELL_SIZE / 2) << 16;
@@ -76,8 +83,20 @@ static void spawn_turret_defenders(void) {
     }
 }
 
+// Attackers path around anything solid; roads and open ground are free.
+static void build_cost_from_city(void) {
+    for (int gy = 0; gy < WORLD_H; gy++) {
+        for (int gx = 0; gx < WORLD_W; gx++) {
+            uint8_t t = world_tile[gy][gx];
+            flowfield_cost[gy][gx] =
+                (t == CITY_HOUSE || t == CITY_BARRICADE || t == CITY_TURRET) ? 255 : 0;
+        }
+    }
+}
+
 void siege_phase_start(void) {
     entity_soa_init();
+    build_cost_from_city();
     flowfield_build(SIEGE_TARGET_GX, SIEGE_TARGET_GY);
     spawn_turret_defenders();
     spawn_attackers();
@@ -141,10 +160,14 @@ static void combat_pair_callback(uint32_t a, uint32_t b, void *userdata) {
     }
     int32_t dx = (entity_x[a] - entity_x[b]) >> 16;
     int32_t dy = (entity_y[a] - entity_y[b]) >> 16;
-    if (dx * dx + dy * dy > COMBAT_RANGE_SQ) {
-        return;
+    int32_t d2 = dx * dx + dy * dy;
+    // Asymmetric ranges: defenders (turrets) out-range attacker melee, so
+    // walls of turrets actually defend instead of being pathed around.
+    if (entity_type[a] == ENTITY_TYPE_ATTACKER) {
+        if (d2 <= TURRET_RANGE_SQ) entity_hp[a] -= COMBAT_DAMAGE; // shot by turret
+    } else {
+        if (d2 <= COMBAT_RANGE_SQ) entity_hp[a] -= COMBAT_DAMAGE; // melee on turret
     }
-    entity_hp[a] -= COMBAT_DAMAGE;
 }
 
 // entity_kill() swap-and-pop shifts the last entity into a killed slot,

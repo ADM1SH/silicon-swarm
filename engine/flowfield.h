@@ -3,11 +3,11 @@
 
 #include <stdint.h>
 
-#include "kernel/framebuffer.h" // FB_WIDTH/FB_HEIGHT -- grid dims derive from screen size
+#include "engine/terrain.h" // v2: the flow field IS the world tile grid
 
-#define FLOWFIELD_CELL_SIZE 16 // px per cell; power of two so px->cell is a shift
-#define FLOWFIELD_W (FB_WIDTH / FLOWFIELD_CELL_SIZE)
-#define FLOWFIELD_H (FB_HEIGHT / FLOWFIELD_CELL_SIZE)
+#define FLOWFIELD_CELL_SIZE 16 // entity units per tile; power of two so unit->cell is a shift
+#define FLOWFIELD_W WORLD_W
+#define FLOWFIELD_H WORLD_H
 
 // 0 = passable, 255 = impassable (wall/obstacle). Game code owns writing
 // into this before calling flowfield_build().

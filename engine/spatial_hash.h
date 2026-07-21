@@ -3,11 +3,11 @@
 
 #include <stdint.h>
 
-#include "kernel/framebuffer.h" // FB_WIDTH/FB_HEIGHT -- grid dims derive from screen size
+#include "engine/terrain.h" // v2: hash cells cover the world tile grid
 
-#define SPATIAL_HASH_CELL_SIZE 16 // px per cell; power of two
-#define SPATIAL_HASH_W (FB_WIDTH / SPATIAL_HASH_CELL_SIZE)
-#define SPATIAL_HASH_H (FB_HEIGHT / SPATIAL_HASH_CELL_SIZE)
+#define SPATIAL_HASH_CELL_SIZE 16 // entity units per cell; power of two
+#define SPATIAL_HASH_W WORLD_W
+#define SPATIAL_HASH_H WORLD_H
 
 // Allocates bucket bookkeeping from the bump allocator (kernel/alloc.h) --
 // call once, after alloc_init().

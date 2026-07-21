@@ -15,7 +15,7 @@ QEMU     := qemu-system-aarch64
 QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
 
 S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S engine/blit_neon.S
-C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c kernel/alloc.c kernel/perf.c game/input.c game/build_phase.c game/siege_phase.c game/city.c engine/entity_soa.c engine/flowfield.c engine/spatial_hash.c engine/terrain.c
+C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c kernel/alloc.c kernel/perf.c game/input.c game/siege_phase.c game/city.c engine/entity_soa.c engine/flowfield.c engine/spatial_hash.c engine/terrain.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
 
@@ -58,14 +58,12 @@ test-host:
 	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_alloc tests/test_alloc.c kernel/alloc.c
 	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_flowfield tests/test_flowfield.c engine/flowfield.c kernel/alloc.c
 	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_spatial_hash tests/test_spatial_hash.c engine/spatial_hash.c engine/entity_soa.c kernel/alloc.c
-	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_build_phase tests/test_build_phase.c game/build_phase.c engine/flowfield.c kernel/alloc.c
 	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_terrain tests/test_terrain.c engine/terrain.c
 	$(CC) -std=c11 -Wall -Wextra -I. -o $(BUILD)/test_city tests/test_city.c game/city.c engine/terrain.c
 	$(BUILD)/test_entity_soa
 	$(BUILD)/test_alloc
 	$(BUILD)/test_flowfield
 	$(BUILD)/test_spatial_hash
-	$(BUILD)/test_build_phase
 	$(BUILD)/test_terrain
 	$(BUILD)/test_city
 

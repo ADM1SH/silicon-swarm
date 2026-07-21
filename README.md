@@ -1,16 +1,21 @@
 # Silicon Swarm
 
-A bare-metal (no OS, no libc) AArch64 game for QEMU `virt`: a Cities: Skylines-style
-build phase feeding into a hundred-thousand-entity swarm siege phase, built for raw
-cache/SIMD throughput rather than through an OS abstraction layer.
+A bare-metal (no OS, no libc) AArch64 game for QEMU `virt`: an isometric
+RollerCoaster-Tycoon-style city builder feeding into an entity-swarm siege,
+built for raw cache/SIMD throughput rather than through an OS abstraction
+layer.
 
 ## Status
 
-Complete — all 12 roadmap phases done. Boots on QEMU `virt` under `-accel hvf`,
-plays a full build → siege → win/loss loop with NEON-accelerated entity updates
-and spatial-hash combat, profiled with `PMCCNTR_EL0`. See "How to play" below
-to run it, or the Roadmap section for what each phase built and how it was
-verified.
+**v2 complete** — isometric "3D" at 1280×720 on top of the finished v1 engine
+(all 12 v1 roadmap phases plus v2 Phases 0–6). The world is a 128×128
+heightmap rendered RCT-style (2:1 diamond projection, corner heights, the
+RCT ±1 slope rule, painter's-order flat-shaded quads, every span filled by
+NEON assembly). You terraform, build a road/house economy, wall the core
+with barricades and turrets, then hold off a 2,000-entity siege pathed by a
+flow field and resolved through spatial-hash combat. HUD, win bounty, and
+full game-over/restart loop included. Profiled with `PMCCNTR_EL0`: worst
+observed frame ≈ 2.5M cycles against a ≥16M-cycle 60Hz budget.
 
 ## How to play
 
@@ -27,30 +32,22 @@ make run-gfx`, opening the game in its own window.
 > graphical window just displays the game. Keys pressed in the graphical
 > window go nowhere (there is no virtual keyboard device).
 
-**Build phase** (starts immediately): WASD moves the white cursor one grid
-cell at a time.
-- `1` — select barricade (dark red; blocks pathing, doesn't fight)
-- `2` — select turret (gold; fights attackers, doesn't block pathing)
-- Space — place the selected tool at the cursor
-- Enter — start the siege with whatever you've built
+**Build phase** (starts immediately, yellow tile = cursor, tall green prism
+= your city core on the central plateau):
+- WASD — move the cursor one tile; the camera follows
+- `q` / `e` — raise / lower terrain under the cursor (RCT terraforming;
+  buildings need flat ground, so sculpt first)
+- `1` barricade $10 (blocks pathing) · `2` turret $50 (shoots, 2.5-tile
+  range) · `3` road $5 · `4` house $20 (earns $2/s **only while touching a
+  road**)
+- Space — place · `x` — demolish (half refund) · Enter — start the siege
 
-The green tile is the city center — it's already occupied, so nothing can be
-built there.
-
-**Siege phase**: fully automatic, no input needed. Attackers (light blue)
-spawn at the screen edges and path toward the city center, fighting any
-turrets in range along the way. The run ends in a win (every attacker
-destroyed) or a loss (the city center's HP hits 0), printed once over the
-UART/serial log — visible in the terminal `play.command` was launched from,
-or more verbosely via `make run` (UART on stdio, no window) instead of
-`run-gfx`.
-
-There's no restart/replay loop yet (v1 scope — see Phase 11 below); relaunch
-`play.command` to try again with a different layout. The shipped wave is a
-modest 2,000 attackers for a fast, legible fight — the engine itself has been
-measured holding a stable 60Hz with up to 1,000,000 entities with no combat
-active (Phase 9) and documented exactly where a defended, combat-heavy fight
-starts to cost more (Phase 12).
+**Siege phase**: automatic. 2,000 attackers (blue) spawn at the world edges
+and flow-field their way to your core, routing around buildings and getting
+shot by turret defenders (gold) on the way. Win (all attackers dead) pays a
+$150 bounty and returns to building; lose (core HP 0) shows the game-over
+banner — Enter starts a fresh map. HUD top-left shows money, tool or core
+HP/foe count.
 
 ## Design decisions
 

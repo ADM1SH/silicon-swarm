@@ -2,56 +2,45 @@
 
 ## Goals
 
-Build Silicon Swarm: a bare-metal (no OS, no libc) AArch64 game for QEMU
-`virt`, combining a Cities: Skylines-style build phase with an entity-swarm
-siege phase, optimized for raw cache/SIMD throughput. Full design decisions,
-hard constraints, and the 13-phase roadmap (Phase 0 through Phase 12) live in
-[README.md](README.md).
+Silicon Swarm v2: bare-metal AArch64 (QEMU `virt`) isometric city-builder +
+swarm siege — RCT-1999-style 2.5D at 1280×720, hot paths in NEON assembly,
+game logic in freestanding C. See [README.md](README.md) for design and
+controls.
 
-## Current state
+## Current state (2026-07-21)
 
-**All work is done and verified.** All 12 roadmap phases are implemented,
-committed, and pushed to https://github.com/ADM1SH/silicon-swarm (branch
-`main`). The engine boots, plays a full build → siege → win/loss loop, and
-has been profiled (`PMCCNTR_EL0`).
+**v2 complete and verified end-to-end on a live display.** All six v2
+phases built, tested, committed on `main`:
 
-The previously open graphical-mode bug ("blank, unresponsive window") is
-**resolved and verified on a real machine with a display** (2026-07-21):
+- P0: 1280×720 ramfb (screendump-verified).
+- P1: 128×128 corner-heightmap terrain, 2:1 diamond projection, painter's
+  order, RCT ±1 slope rule, NEON span fills, slope/height shading.
+- P2: tile cursor + q/e terraforming with directional slope propagation.
+- P3: city layer — road/house/barricade/turret prisms, money, income only
+  for road-adjacent houses, demolish refunds.
+- P4: siege ported to world space (flowfield + spatial hash retargeted to
+  the world grid; build_phase module deleted). Asymmetric combat ranges so
+  turrets actually defend. Verified live: 2000 attackers, SIEGE WON,
+  bounty, return to build; loss path shows banner, enter restarts.
+- P5: HUD (3×5 bitmap font) — money/tool/core HP/foes + game-over banner.
+- P6: perf documented — worst frame ≈ 2.5M cycles (render 1.0–2.2M,
+  combat ≤ 0.24M) vs ≥16M cycle 60Hz budget; hot loops already NEON.
 
-- **Input** — the earlier `-serial stdio` fix (commit `345e4b8`) works. The
-  full loop was driven end-to-end over the serial port against a live
-  `-display cocoa` instance: tool selection (`1`/`2`), cursor movement
-  (WASD), placement (space, three turrets placed), siege start (enter),
-  siege resolution. Every action echoed correctly on the serial log.
-- **Rendering** — QEMU `screendump` captures of the live display device
-  show the build screen (grid + core + cursor) and a mid-siege frame
-  (2000 attackers swarming the core, turret tiles visible) rendering
-  correctly through ramfb.
-- **Root cause of the "blank window" report** — two compounding UX issues,
-  no rendering bug: (1) the initial build frame was near-solid black
-  (background + one 16px core tile), easily mistaken for a blank window;
-  (2) keystrokes typed into the graphical window go nowhere (input is
-  serial-only), making it feel unresponsive. The non-resizable window is
-  normal QEMU cocoa behavior for a fixed-size ramfb surface, not a bug.
+Host tests: 6/6 green (`make test-host`): entity_soa, alloc, flowfield,
+spatial_hash, terrain (slope invariant, rasterizer bounds, terraform),
+city (placement rules, economy, refunds).
 
-## Changes made this session (2026-07-21)
+## Verification rig (no GUI needed)
 
-- `kernel/kmain.c`: build-phase render now draws a faint cell grid
-  (`draw_grid_lines`, `GRID_COLOR`) so the first frame is visibly a play
-  field instead of a near-black screen.
-- `README.md`: "How to play" now states explicitly that input goes into the
-  **terminal** window (serial stdio), not the graphical window.
-- Verified `make build` clean and all 5 host unit tests pass
-  (`make test-host`).
-
-One verification-rig gotcha worth remembering: testing with `-serial pty`
-feeds the guest's own boot log back into its UART as keystrokes (pty line
-discipline echo), producing phantom input. Use
-`-serial unix:/path,server=on,wait=off` for clean scripted testing;
-`-serial stdio` (what `run-gfx` uses) is unaffected.
+`-serial pty` echoes the guest's own log back as input (pty line
+discipline) — use
+`-serial unix:/tmp/sock,server=on,wait=off -monitor unix:/tmp/mon,server=on,wait=off`,
+drive keys through the serial socket, capture frames with the monitor's
+`screendump` command.
 
 ## Next steps
 
-None required. Optional polish ideas only: sound-free win/lose screen
-graphics, a HUD showing selected tool/core HP, difficulty tuning (the
-default siege is very hard to win with few turrets).
+None required. Polish ideas: 4-way view rotation, entity/building painter
+interleaving (entities currently draw after all terrain — visible only
+when a swarm passes behind a tall hill), wave escalation across sieges,
+water, sound-free win screen art.

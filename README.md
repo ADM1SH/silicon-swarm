@@ -7,15 +7,18 @@ layer.
 
 ## Status
 
-**v2 complete** — isometric "3D" at 1280×720 on top of the finished v1 engine
-(all 12 v1 roadmap phases plus v2 Phases 0–6). The world is a 128×128
-heightmap rendered RCT-style (2:1 diamond projection, corner heights, the
-RCT ±1 slope rule, painter's-order flat-shaded quads, every span filled by
-NEON assembly). You terraform, build a road/house economy, wall the core
-with barricades and turrets, then hold off a 2,000-entity siege pathed by a
-flow field and resolved through spatial-hash combat. HUD, win bounty, and
-full game-over/restart loop included. Profiled with `PMCCNTR_EL0`: worst
-observed frame ≈ 2.5M cycles against a ≥16M-cycle 60Hz budget.
+**v5 complete** — a full Cities-Skylines-style simulation at 1920×1080 on a
+bare-metal isometric engine. 128×128 heightmap rendered RCT-style (2:1
+diamond projection, corner heights, ±1 slope rule, painter's-order quads,
+NEON span fills), double-buffered ramfb (no tearing), a real virtio
+keyboard driver (type into the game window), 4-way view rotation, water +
+moats. The city layer is zoned R/C/I with self-growing buildings, RCI
+demand, population, land value, density tiers, avenues/congestion, tax
+sliders, and siege-flavored services (watchtower/granary/barracks).
+Escalating swarm waves are pathed by a flow field and resolved through
+spatial-hash combat, with entities occluding correctly behind terrain.
+Live minimap, fast cursor, 1×/2×/4× speed. Profiled with `PMCCNTR_EL0`:
+worst frame ≈ 3M cycles against a ≥60M-cycle 60Hz budget on Apple Silicon.
 
 ## How to play
 
@@ -26,11 +29,8 @@ observed frame ≈ 2.5M cycles against a ≥16M-cycle 60Hz budget.
 Double-click it in Finder, or run it from a terminal — it's `make build &&
 make run-gfx`, opening the game in its own window.
 
-> **Type into the terminal window, not the game window.** Input reaches the
-> game over the serial port (`-serial stdio`), so keystrokes go into the
-> terminal that launched QEMU — the one printing the boot log — while the
-> graphical window just displays the game. Keys pressed in the graphical
-> window go nowhere (there is no virtual keyboard device).
+> **Type into the game window** — the guest has a real virtio keyboard.
+> (The terminal that launched QEMU also works, via serial stdin.)
 
 **Build phase** (starts immediately, yellow tile = cursor, tall green prism
 = your city core on the central plateau):
@@ -85,7 +85,9 @@ HP/foe count.
   see below.
 - **GIC:** `-machine virt,gic-version=2`. GICv2 MMIO programming is far simpler than
   GICv3's system-register + redistributor model. GICv3 is a stretch goal.
-- **Input (v1):** PL011 UART polling. A full `virtio-input` driver is a stretch phase.
+- **Input:** a polled virtio-mmio keyboard driver (modern layout,
+  `-global virtio-mmio.force-legacy=false`) with PL011 UART serial as a
+  second source — both feed the same key alphabet.
 - **Fixed-point math** (Q16.16 or similar) for positions/gradients in hot paths — no
   scalar float, no FPU/NEON mode-switch overhead.
 - **SoA, not AoS.** Parallel flat arrays (`entity_x[]`, `entity_y[]`, `entity_hp[]`,

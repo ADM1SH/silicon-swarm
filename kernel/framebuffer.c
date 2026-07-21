@@ -49,7 +49,9 @@ struct ramfb_cfg {
 
 #define DRM_FORMAT_XRGB8888 0x34325258u // fourcc('X','R','2','4')
 
-static uint32_t g_framebuffer[FB_WIDTH * FB_HEIGHT] __attribute__((aligned(64)));
+static uint32_t g_framebuffer[2][FB_WIDTH * FB_HEIGHT] __attribute__((aligned(64)));
+static int g_back; // buffer being drawn into; the other one is on screen
+static uint16_t g_ramfb_select;
 static struct ramfb_cfg g_ramfb_cfg __attribute__((aligned(64)));
 static struct fw_cfg_dma_access g_dma __attribute__((aligned(64)));
 
@@ -119,14 +121,10 @@ static uint16_t fw_cfg_find_ramfb_selector(void) {
     return 0;
 }
 
-int framebuffer_init(void) {
-    uint16_t ramfb_select = fw_cfg_find_ramfb_selector();
-    if (ramfb_select == 0) {
-        uart_puts("NOT YET IMPLEMENTED: ramfb not present in fw_cfg\n");
-        return 0;
-    }
-
-    g_ramfb_cfg.addr = __builtin_bswap64((uint64_t)(uintptr_t)g_framebuffer);
+// (Re)points ramfb's scanout at `buf` via a fw_cfg DMA write. Returns 1 on
+// success. Cheap enough to do per frame — this IS the page flip.
+static int ramfb_set_scanout(const uint32_t *buf) {
+    g_ramfb_cfg.addr = __builtin_bswap64((uint64_t)(uintptr_t)buf);
     g_ramfb_cfg.fourcc = __builtin_bswap32(DRM_FORMAT_XRGB8888);
     g_ramfb_cfg.flags = 0;
     g_ramfb_cfg.width = __builtin_bswap32((uint32_t)FB_WIDTH);
@@ -134,7 +132,7 @@ int framebuffer_init(void) {
     g_ramfb_cfg.stride = __builtin_bswap32((uint32_t)(FB_WIDTH * 4));
     dcache_clean_range(&g_ramfb_cfg, sizeof(g_ramfb_cfg));
 
-    g_dma.control = __builtin_bswap32(((uint32_t)ramfb_select << 16) |
+    g_dma.control = __builtin_bswap32(((uint32_t)g_ramfb_select << 16) |
                                        FW_CFG_DMA_CTL_SELECT | FW_CFG_DMA_CTL_WRITE);
     g_dma.length = __builtin_bswap32((uint32_t)sizeof(g_ramfb_cfg));
     g_dma.address = __builtin_bswap64((uint64_t)(uintptr_t)&g_ramfb_cfg);
@@ -147,31 +145,41 @@ int framebuffer_init(void) {
     // handled bits, setting ERROR on failure) — invalidate before reading
     // so we see that write, not our own stale cached copy.
     dcache_invalidate_range(&g_dma, sizeof(g_dma));
-    uint32_t result = __builtin_bswap32(g_dma.control);
-    if (result & FW_CFG_DMA_CTL_ERROR) {
+    return !(__builtin_bswap32(g_dma.control) & FW_CFG_DMA_CTL_ERROR);
+}
+
+int framebuffer_init(void) {
+    g_ramfb_select = fw_cfg_find_ramfb_selector();
+    if (g_ramfb_select == 0) {
+        uart_puts("NOT YET IMPLEMENTED: ramfb not present in fw_cfg\n");
+        return 0;
+    }
+    g_back = 1; // buffer 0 goes on screen first, draw into 1
+    if (!ramfb_set_scanout(g_framebuffer[0])) {
         uart_puts("ramfb: fw_cfg DMA write reported an error\n");
         return 0;
     }
-
-    uart_puts("ramfb negotiated\n");
+    uart_puts("ramfb negotiated (double-buffered)\n");
     return 1;
 }
 
 uint32_t *framebuffer_pixels(void) {
-    return g_framebuffer;
+    return g_framebuffer[g_back];
 }
 
 void framebuffer_set_pixel(int x, int y, uint32_t color) {
     if ((unsigned)x >= FB_WIDTH || (unsigned)y >= FB_HEIGHT) {
         return;
     }
-    g_framebuffer[y * FB_WIDTH + x] = color;
+    g_framebuffer[g_back][y * FB_WIDTH + x] = color;
 }
 
 void framebuffer_fill(uint32_t color) {
-    neon_fill32(g_framebuffer, color, (uint32_t)(FB_WIDTH * FB_HEIGHT));
+    neon_fill32(g_framebuffer[g_back], color, (uint32_t)(FB_WIDTH * FB_HEIGHT));
 }
 
 void framebuffer_flush(void) {
-    dcache_clean_range(g_framebuffer, sizeof(g_framebuffer));
+    dcache_clean_range(g_framebuffer[g_back], sizeof(g_framebuffer[0]));
+    ramfb_set_scanout(g_framebuffer[g_back]);
+    g_back ^= 1;
 }

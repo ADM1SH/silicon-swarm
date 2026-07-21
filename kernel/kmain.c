@@ -17,6 +17,7 @@
 #include "kernel/perf.h"
 #include "kernel/timer.h"
 #include "kernel/uart.h"
+#include "kernel/virtio_input.h"
 
 #define ATTACKER_COLOR 0x0060C0FF
 #define DEFENDER_COLOR 0x00FFD060
@@ -123,6 +124,7 @@ void kmain(void) {
     spatial_hash_init();
 
     int fb_ok = framebuffer_init();
+    virtio_input_init();
     terrain_init();
     city_init();
 

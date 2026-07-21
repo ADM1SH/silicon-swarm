@@ -1,9 +1,12 @@
 #include "game/input.h"
 #include "kernel/uart.h"
+#include "kernel/virtio_input.h"
 
 input_action_t input_poll(void) {
     uint8_t c;
-    if (!uart_getc_nonblock(&c)) {
+    // Two sources, same alphabet: the virtio keyboard (game window) and
+    // the serial console (terminal) both work.
+    if (!virtio_input_poll_char(&c) && !uart_getc_nonblock(&c)) {
         return INPUT_NONE;
     }
     switch (c) {
@@ -41,6 +44,9 @@ input_action_t input_poll(void) {
     case 'x':
     case 'X':
         return INPUT_DEMOLISH;
+    case 'r':
+    case 'R':
+        return INPUT_ROTATE;
     default:
         return INPUT_NONE;
     }

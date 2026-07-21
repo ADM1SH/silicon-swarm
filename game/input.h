@@ -19,6 +19,7 @@ typedef enum {
     INPUT_TOOL_ROAD,      // '3' (v2)
     INPUT_TOOL_HOUSE,     // '4' (v2)
     INPUT_DEMOLISH,       // 'x' (v2)
+    INPUT_ROTATE,         // 'r' -- rotate the view 90 degrees (v3)
 } input_action_t;
 
 // Non-blocking. Returns INPUT_NONE if no byte was pending or the byte read

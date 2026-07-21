@@ -12,10 +12,10 @@ CFLAGS   := -target $(TARGET) -ffreestanding -nostdlib -mcpu=cortex-a72 \
 ASFLAGS  := -target $(TARGET) -ffreestanding -nostdlib -mcpu=cortex-a72 -g
 
 QEMU     := qemu-system-aarch64
-QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512
+QFLAGS   := -M virt,gic-version=2 -cpu host -accel hvf -m 512 -global virtio-mmio.force-legacy=false -device virtio-keyboard-device
 
 S_SRCS   := boot/start.S boot/vectors.S boot/mmu.S engine/blit_neon.S
-C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c kernel/alloc.c kernel/perf.c game/input.c game/siege_phase.c game/city.c game/hud.c engine/entity_soa.c engine/flowfield.c engine/spatial_hash.c engine/terrain.c
+C_SRCS   := kernel/kmain.c kernel/uart.c kernel/exceptions.c kernel/gic.c kernel/timer.c kernel/framebuffer.c kernel/alloc.c kernel/perf.c kernel/virtio_input.c game/input.c game/siege_phase.c game/city.c game/hud.c engine/entity_soa.c engine/flowfield.c engine/spatial_hash.c engine/terrain.c
 OBJS     := $(patsubst %.S,$(BUILD)/%.o,$(S_SRCS)) \
             $(patsubst %.c,$(BUILD)/%.o,$(C_SRCS))
 

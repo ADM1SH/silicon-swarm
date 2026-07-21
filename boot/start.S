@@ -34,6 +34,13 @@ in_el2:
     msr     cnthctl_el2, x0
     msr     cntvoff_el2, xzr
 
+    // MDCR_EL2 = 0: clears TPM/TPMCR (trap performance-monitor register
+    // access from EL1 to EL2) among everything else -- Phase 12 needs
+    // EL1 to read PMCCNTR_EL0 directly. We never install an EL2 vector
+    // table (we drop to EL1 permanently right after this), so leaving
+    // any trap bit set here would fault with nothing to handle it.
+    msr     mdcr_el2, xzr
+
     // Land at EL1h (dedicated SP_EL1) with all exceptions masked — Phase 2
     // installs real vectors and unmasks them deliberately.
     mov     x0, #SPSR_EL1h_MASKED

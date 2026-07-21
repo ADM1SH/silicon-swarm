@@ -21,11 +21,12 @@ static int cell_of(uint32_t i, int *out_gx, int *out_gy) {
 }
 
 void spatial_hash_init(void) {
-    g_cell_count = (uint32_t *)bump_alloc(NUM_CELLS * sizeof(uint32_t), sizeof(uint32_t));
-    g_cell_start = (uint32_t *)bump_alloc(NUM_CELLS * sizeof(uint32_t), sizeof(uint32_t));
-    g_cursor = (uint32_t *)bump_alloc(NUM_CELLS * sizeof(uint32_t), sizeof(uint32_t));
-    g_entity_index =
-        (uint32_t *)bump_alloc((size_t)MAX_ENTITIES * sizeof(uint32_t), sizeof(uint32_t));
+    // 64B alignment (Phase 12), not sizeof(uint32_t) -- each array gets
+    // its own cache line.
+    g_cell_count = (uint32_t *)bump_alloc(NUM_CELLS * sizeof(uint32_t), 64);
+    g_cell_start = (uint32_t *)bump_alloc(NUM_CELLS * sizeof(uint32_t), 64);
+    g_cursor = (uint32_t *)bump_alloc(NUM_CELLS * sizeof(uint32_t), 64);
+    g_entity_index = (uint32_t *)bump_alloc((size_t)MAX_ENTITIES * sizeof(uint32_t), 64);
 }
 
 void spatial_hash_build(void) {

@@ -6,6 +6,7 @@
 #include "engine/flowfield.h"
 #include "engine/spatial_hash.h"
 #include "game/build_phase.h"
+#include "kernel/perf.h"
 
 #define ENTITY_TYPE_ATTACKER 0
 #define ENTITY_TYPE_DEFENDER 1
@@ -29,6 +30,8 @@
 
 static int32_t g_core_hp;
 static uint32_t g_rng_state = 12345;
+static uint64_t g_last_steer_cycles;
+static uint64_t g_last_combat_cycles;
 
 static uint32_t next_rand(void) {
     g_rng_state = g_rng_state * 1103515245u + 12345u;
@@ -158,14 +161,28 @@ static void resolve_deaths(void) {
 }
 
 void siege_phase_tick(void) {
+    uint64_t t0 = perf_cycles();
     entity_steer();
+    uint64_t t1 = perf_cycles();
+    g_last_steer_cycles = t1 - t0;
+
     uint32_t attackers, defenders;
     siege_phase_counts(&attackers, &defenders);
     if (attackers > 0 && defenders > 0) {
         spatial_hash_build();
         spatial_hash_for_each_nearby_pair(combat_pair_callback, NULL);
     }
+    g_last_combat_cycles = perf_cycles() - t1;
+
     resolve_deaths();
+}
+
+uint64_t siege_phase_last_steer_cycles(void) {
+    return g_last_steer_cycles;
+}
+
+uint64_t siege_phase_last_combat_cycles(void) {
+    return g_last_combat_cycles;
 }
 
 void siege_phase_counts(uint32_t *out_attackers, uint32_t *out_defenders) {

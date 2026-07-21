@@ -9,6 +9,7 @@
 #include "kernel/framebuffer.h"
 #include "kernel/gic.h"
 #include "kernel/mmu.h"
+#include "kernel/perf.h"
 #include "kernel/timer.h"
 #include "kernel/uart.h"
 
@@ -109,6 +110,8 @@ void kmain(void) {
     uart_puts("SILICON SWARM BOOT OK\n");
 
     exceptions_init();
+    perf_init(); // right after exceptions_init(): a bad MDCR_EL2/PMCR_EL0
+                 // setup should trap and print a diagnostic, not hang silently
 
     mmu_init();
     uart_puts("MMU + caches enabled\n");
@@ -142,6 +145,7 @@ void kmain(void) {
     uint64_t last_reported = 0;
     uint64_t last_frame_tick = timer_get_ticks();
     uint64_t frame_count = 0;
+    uint64_t last_render_cycles = 0;
     while (1) {
         uint64_t ticks = timer_get_ticks();
         if (ticks - last_reported >= 60) {
@@ -159,6 +163,16 @@ void kmain(void) {
                 print_dec64(defenders);
                 uart_puts(", core_hp = ");
                 print_dec64((uint64_t)(core_hp > 0 ? core_hp : 0));
+                // Phase 12: core-clock cycles for the last tick's three
+                // phases -- comparing these directly (not converting to
+                // wall-clock time) is what identifies the bottleneck at
+                // this entity count.
+                uart_puts(", steer_cyc = ");
+                print_dec64(siege_phase_last_steer_cycles());
+                uart_puts(", combat_cyc = ");
+                print_dec64(siege_phase_last_combat_cycles());
+                uart_puts(", render_cyc = ");
+                print_dec64(last_render_cycles);
             }
             uart_putc('\n');
             last_reported = ticks;
@@ -234,11 +248,13 @@ void kmain(void) {
                     result_printed = 1;
                 }
 
+                uint64_t render_t0 = perf_cycles();
                 if (state == GAME_BUILD) {
                     render_build_frame(cursor_x, cursor_y);
                 } else {
                     render_siege_frame();
                 }
+                last_render_cycles = perf_cycles() - render_t0;
                 frame_count++;
             }
         }

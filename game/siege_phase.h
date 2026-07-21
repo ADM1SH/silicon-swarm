@@ -28,6 +28,13 @@ void siege_phase_tick(void);
 void siege_phase_counts(uint32_t *out_attackers, uint32_t *out_defenders);
 int32_t siege_phase_core_hp(void);
 
+// Phase 12: core-clock cycles (kernel/perf.h) the last siege_phase_tick()
+// spent in each phase, for identifying where the actual cost is (memory
+// bandwidth vs. compute vs. spatial-hash overhead) at a given entity
+// count. Both 0 before the first tick.
+uint64_t siege_phase_last_steer_cycles(void);
+uint64_t siege_phase_last_combat_cycles(void);
+
 // True once the wave is fully resolved either way.
 int siege_phase_is_won(void);  // no attackers left, core still standing
 int siege_phase_is_lost(void); // core HP hit 0

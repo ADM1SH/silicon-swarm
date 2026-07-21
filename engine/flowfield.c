@@ -11,8 +11,10 @@ static const int NEIGHBOR_DX[4] = {0, 0, -1, 1};
 static const int NEIGHBOR_DY[4] = {-1, 1, 0, 0};
 
 void flowfield_init(void) {
-    g_queue = (uint16_t *)bump_alloc(
-        (size_t)FLOWFIELD_W * FLOWFIELD_H * sizeof(uint16_t), sizeof(uint16_t));
+    // 64B alignment (Phase 12), not sizeof(uint16_t) -- every major
+    // engine array gets its own cache line, not just the ones declared
+    // with __attribute__((aligned(64))) directly (entity_soa.c's arrays).
+    g_queue = (uint16_t *)bump_alloc((size_t)FLOWFIELD_W * FLOWFIELD_H * sizeof(uint16_t), 64);
     for (int gy = 0; gy < FLOWFIELD_H; gy++) {
         for (int gx = 0; gx < FLOWFIELD_W; gx++) {
             flowfield_cost[gy][gx] = 0;

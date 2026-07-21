@@ -6,8 +6,45 @@ cache/SIMD throughput rather than through an OS abstraction layer.
 
 ## Status
 
-Pre-Phase-0. Toolchain is installed and verified (see below). No boot code yet —
-next step is Phase 0 in the roadmap.
+Complete — all 12 roadmap phases done. Boots on QEMU `virt` under `-accel hvf`,
+plays a full build → siege → win/loss loop with NEON-accelerated entity updates
+and spatial-hash combat, profiled with `PMCCNTR_EL0`. See "How to play" below
+to run it, or the Roadmap section for what each phase built and how it was
+verified.
+
+## How to play
+
+```bash
+./play.command
+```
+
+Double-click it in Finder, or run it from a terminal — it's `make build &&
+make run-gfx`, opening the game in its own window.
+
+**Build phase** (starts immediately): WASD moves the white cursor one grid
+cell at a time.
+- `1` — select barricade (dark red; blocks pathing, doesn't fight)
+- `2` — select turret (gold; fights attackers, doesn't block pathing)
+- Space — place the selected tool at the cursor
+- Enter — start the siege with whatever you've built
+
+The green tile is the city center — it's already occupied, so nothing can be
+built there.
+
+**Siege phase**: fully automatic, no input needed. Attackers (light blue)
+spawn at the screen edges and path toward the city center, fighting any
+turrets in range along the way. The run ends in a win (every attacker
+destroyed) or a loss (the city center's HP hits 0), printed once over the
+UART/serial log — visible in the terminal `play.command` was launched from,
+or more verbosely via `make run` (UART on stdio, no window) instead of
+`run-gfx`.
+
+There's no restart/replay loop yet (v1 scope — see Phase 11 below); relaunch
+`play.command` to try again with a different layout. The shipped wave is a
+modest 2,000 attackers for a fast, legible fight — the engine itself has been
+measured holding a stable 60Hz with up to 1,000,000 entities with no combat
+active (Phase 9) and documented exactly where a defended, combat-heavy fight
+starts to cost more (Phase 12).
 
 ## Design decisions
 
@@ -55,12 +92,15 @@ so it works out of the box. See [`debug/lldbinit`](debug/lldbinit) —
 
 ## Testing strategy
 
-Most of `engine/` and `game/` (SoA entity storage, flow field, spatial hash) is
-freestanding C with no hardware dependency — it doesn't need QEMU to be exercised.
-Once those modules exist, compile and unit-test them natively on macOS with the
-host's clang (a plain `-std=c11` build, no `-target aarch64-none-elf`) rather than
-round-tripping through QEMU + UART for every logic change. Anything touching MMIO,
-the MMU, or asm stays QEMU/UART-verified as described per-phase below.
+Most of `engine/` and `game/build_phase.c` (SoA entity storage, flow field,
+spatial hash, city grid) is freestanding C with no hardware dependency, so it's
+unit-tested natively on macOS with the host's own clang (`make test-host`, a
+plain `-std=c11` build, no `-target aarch64-none-elf`, no QEMU) instead of
+round-tripping through UART for every logic change:
+`tests/test_entity_soa.c`, `test_alloc.c`, `test_flowfield.c`,
+`test_spatial_hash.c`, `test_build_phase.c`. Anything touching MMIO, the MMU,
+or asm — `game/siege_phase.c`'s per-tick loop included, since it drives the
+NEON update primitive — stays QEMU/UART-verified as described per-phase below.
 
 ## Hard constraints
 
@@ -85,18 +125,22 @@ silicon-swarm/
 │   ├── timer.c/.h       # CNTP_TVAL_EL0 / CNTP_CTL_EL0, IRQ handler
 │   ├── gic.c/.h         # GICv2 distributor + CPU interface init, IRQ enable/ack
 │   ├── framebuffer.c/.h # fw_cfg + ramfb negotiation, pixel plotting API
-│   └── alloc.c/.h       # bump allocator over a static arena
+│   ├── alloc.c/.h       # bump allocator over a static arena
+│   └── perf.c/.h        # PMCCNTR_EL0 cycle counter (Phase 12)
 ├── engine/
 │   ├── entity_soa.c/.h  # struct-of-arrays entity storage (X[], Y[], HP[], type[])
 │   ├── flowfield.c/.h   # grid gravity map, gradient generation, downhill lookup
-│   ├── blit_neon.S      # NEON-accelerated pixel blit routines
+│   ├── blit_neon.S/.h   # NEON-accelerated position update + framebuffer fill
 │   └── spatial_hash.c/.h# grid-bucket collision/combat resolution
 ├── game/
-│   ├── build_phase.c/.h # city grid state, zoning, road placement
-│   ├── siege_phase.c/.h # spawn logic, wave scaling, win/loss conditions
+│   ├── build_phase.c/.h # city grid state, tile placement (barricade/turret)
+│   ├── siege_phase.c/.h # wave spawn, per-tick simulation, win/loss (single
+│   │                     # wave, no escalation -- v1 minimal-loop scope)
 │   └── input.c/.h       # UART key polling -> game action mapping
+├── tests/                # host-side unit tests, run via `make test-host`
 ├── linker.ld
 ├── Makefile
+├── play.command          # double-click launcher (make build && make run-gfx)
 └── debug/
     └── lldbinit          # lldb target + gdb-remote setup for QEMU's gdbstub
 ```
@@ -106,15 +150,20 @@ silicon-swarm/
 - `make build` — compile + link → `silicon_swarm.elf`, `llvm-objcopy -O binary` →
   `silicon_swarm.img`
 - `make run` — `qemu-system-aarch64 -M virt -cpu host -accel hvf -m 512 -nographic
-  -kernel silicon_swarm.img` (UART on stdio for early phases)
-- `make run-gfx` — same, with `-display cocoa` once ramfb works
+  -kernel silicon_swarm.img` (UART on stdio, no window — useful for reading the
+  tick/combat/cycle log directly)
+- `make run-gfx` — same, with `-device ramfb -display cocoa` for the actual game
+  window
 - `make debug` — same as `run` plus `-s -S`, halts at reset for `lldb -s
   debug/lldbinit`
 - `make dumpdtb` — dumps and decompiles the `virt` board's device tree, to verify
   MMIO addresses instead of trusting the table below blindly
+- `make test-host` — builds and runs the host-side unit tests (see Testing
+  strategy) with the host's own clang, no QEMU involved
 - `make clean`
 
-(None of these exist yet — added starting Phase 0.)
+`./play.command` wraps `make build && make run-gfx` for double-click launching
+from Finder — see "How to play" above.
 
 ## QEMU `virt` memory map (verify with `make dumpdtb` — don't trust blindly)
 
@@ -152,10 +201,9 @@ dependent code) exposed it.
 
 ## Roadmap
 
-Work through phases in order; each has a concrete "done when" test. Don't start a
-phase before the previous one's test passes under `make run` — bare-metal bugs
-compound silently, and an unverified lower layer produces baffling failures phases
-later. Commit after each phase.
+**All 12 phases complete** — commit history has one commit per phase. Kept
+below as the design record of what each phase built and its concrete "done
+when" test, not a forward-looking TODO list.
 
 0. **Toolchain sanity** — boot a binary that spins (`b .`); confirm via `make
    debug` + lldb that PC sits in the loop.

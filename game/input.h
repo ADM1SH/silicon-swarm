@@ -29,6 +29,11 @@ typedef enum {
     INPUT_TAX_CYCLE,       // 't' -- select which tax slider (R/C/I) (v4)
     INPUT_TAX_DOWN,        // '-' (v4)
     INPUT_TAX_UP,          // '=' (v4)
+    INPUT_UP_FAST,         // shift+WASD -- 5-tile cursor jumps (v5)
+    INPUT_DOWN_FAST,
+    INPUT_LEFT_FAST,
+    INPUT_RIGHT_FAST,
+    INPUT_SPEED,           // 'f' -- cycle sim speed 1x/2x/4x (v5)
 } input_action_t;
 
 // Non-blocking. Returns INPUT_NONE if no byte was pending or the byte read

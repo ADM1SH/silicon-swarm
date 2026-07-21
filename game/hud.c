@@ -1,6 +1,10 @@
 // 3x5 font, one uint16_t per glyph: bits 14..12 = top row (left bit = MSB),
 // down to bits 2..0 = bottom row.
 #include "game/hud.h"
+#include "engine/entity_soa.h"
+#include "engine/flowfield.h"
+#include "engine/terrain.h"
+#include "game/city.h"
 #include "kernel/framebuffer.h"
 
 #define G(r0, r1, r2, r3, r4) \
@@ -90,4 +94,62 @@ void hud_number(int x_end, int y, uint32_t v, uint32_t color) {
         draw_glyph(x_end, y, digits[v % 10], color);
         v /= 10;
     } while (v > 0);
+}
+
+// ---- minimap ----
+
+#define MM_SCALE 2
+#define MM_MARGIN 16
+
+static uint32_t minimap_tile_color(int gx, int gy) {
+    uint8_t t = world_tile[gy][gx];
+    switch (t) {
+    case CITY_ROAD: case CITY_AVENUE: return 0x00808088;
+    case CITY_BARRICADE: return 0x00A03030;
+    case CITY_TURRET: case CITY_WATCHTOWER: return 0x00FFD060;
+    case CITY_CORE: return 0x0040FF40;
+    case CITY_GRANARY: case CITY_BARRACKS: return 0x00C08050;
+    default:
+        if (t >= CITY_R1 && t <= CITY_R3) return 0x0070C070;
+        if (t >= CITY_C1 && t <= CITY_C3) return 0x006090D0;
+        if (t >= CITY_I1 && t <= CITY_I3) return 0x00C0A040;
+        if (t >= CITY_ZONE_R && t <= CITY_ZONE_I) return 0x00405048;
+        break;
+    }
+    if (terrain_tile_underwater(gx, gy)) {
+        return 0x001E4066;
+    }
+    // Terrain: darker in valleys, lighter on peaks.
+    int h = world_height[gy][gx];
+    return 0x00184020 + (uint32_t)(h * 0x040804);
+}
+
+void hud_minimap(int cur_gx, int cur_gy, int show_entities) {
+    int ox = FB_WIDTH - WORLD_W * MM_SCALE - MM_MARGIN;
+    int oy = FB_HEIGHT - WORLD_H * MM_SCALE - MM_MARGIN;
+    for (int gy = 0; gy < WORLD_H; gy++) {
+        for (int gx = 0; gx < WORLD_W; gx++) {
+            uint32_t c = minimap_tile_color(gx, gy);
+            int px = ox + gx * MM_SCALE, py = oy + gy * MM_SCALE;
+            for (int d = 0; d < MM_SCALE * MM_SCALE; d++) {
+                framebuffer_set_pixel(px + d % MM_SCALE, py + d / MM_SCALE, c);
+            }
+        }
+    }
+    if (show_entities) {
+        for (uint32_t i = 0; i < entity_count; i++) {
+            int gx = (entity_x[i] >> 16) / FLOWFIELD_CELL_SIZE;
+            int gy = (entity_y[i] >> 16) / FLOWFIELD_CELL_SIZE;
+            if ((unsigned)gx < WORLD_W && (unsigned)gy < WORLD_H) {
+                framebuffer_set_pixel(ox + gx * MM_SCALE, oy + gy * MM_SCALE,
+                                      entity_type[i] == 1 ? 0x00FFD060 : 0x0060C0FF);
+            }
+        }
+    }
+    if (cur_gx >= 0) { // cursor cross
+        for (int d = -2; d <= 2; d++) {
+            framebuffer_set_pixel(ox + cur_gx * MM_SCALE + d, oy + cur_gy * MM_SCALE, 0x00FFFFFF);
+            framebuffer_set_pixel(ox + cur_gx * MM_SCALE, oy + cur_gy * MM_SCALE + d, 0x00FFFFFF);
+        }
+    }
 }

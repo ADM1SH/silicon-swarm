@@ -36,7 +36,8 @@ make run-gfx`, opening the game in its own window.
 = your city core on the central plateau):
 - **Type straight into the game window** — the guest has a real (virtio)
   keyboard now; the terminal still works too
-- WASD — move the cursor one tile; the camera follows
+- WASD — move the cursor (SHIFT+WASD jumps 5 tiles); the camera follows
+- `f` — game speed 1×/2×/4× · live minimap bottom-right shows the whole world, your city, and incoming swarms
 - `r` — rotate the view 90° (4-way, RCT-style)
 - `q` / `e` — raise / lower terrain under the cursor (RCT terraforming;
   buildings need flat ground, so sculpt first). Digging below the

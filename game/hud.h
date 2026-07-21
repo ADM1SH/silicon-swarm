@@ -14,4 +14,8 @@ void hud_text(int x, int y, const char *s, uint32_t color);
 // Right-aligned unsigned number ending at pixel x_end.
 void hud_number(int x_end, int y, uint32_t v, uint32_t color);
 
+// Live minimap (world orientation, 2px/tile) in the bottom-right corner:
+// terrain/water, city tiles, entity dots, white cursor marker.
+void hud_minimap(int cur_gx, int cur_gy, int show_entities);
+
 #endif

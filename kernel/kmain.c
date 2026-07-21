@@ -185,6 +185,7 @@ void kmain(void) {
     int result_printed = 0;
     int wave = 1;
     int tax_sel = 0;
+    int sim_speed = 1; // 1x/2x/4x: siege ticks per frame, city ticks per second
 
     if (fb_ok) {
         uart_puts("v2: CITY -- WASD cursor, q/e terrain, 1=barricade 2=turret "
@@ -200,7 +201,9 @@ void kmain(void) {
         uint64_t ticks = timer_get_ticks();
         if (ticks - last_reported >= 60) {
             if (state == GAME_BUILD) {
-                city_sim_tick();
+                for (int k = 0; k < sim_speed; k++) {
+                    city_sim_tick();
+                }
             }
             uart_puts("tick count = ");
             print_dec64(ticks);
@@ -243,6 +246,23 @@ void kmain(void) {
                     break;
                 case INPUT_RIGHT:
                     if (cur_gx < WORLD_W - 1) cur_gx++;
+                    break;
+                case INPUT_UP_FAST:
+                    cur_gy = cur_gy > 5 ? cur_gy - 5 : 0;
+                    break;
+                case INPUT_DOWN_FAST:
+                    cur_gy = cur_gy < WORLD_H - 6 ? cur_gy + 5 : WORLD_H - 1;
+                    break;
+                case INPUT_LEFT_FAST:
+                    cur_gx = cur_gx > 5 ? cur_gx - 5 : 0;
+                    break;
+                case INPUT_RIGHT_FAST:
+                    cur_gx = cur_gx < WORLD_W - 6 ? cur_gx + 5 : WORLD_W - 1;
+                    break;
+                case INPUT_SPEED:
+                    sim_speed = sim_speed >= 4 ? 1 : sim_speed * 2;
+                    uart_puts(sim_speed == 1 ? "speed: 1x\n"
+                              : sim_speed == 2 ? "speed: 2x\n" : "speed: 4x\n");
                     break;
                 case INPUT_RAISE:
                     terrain_edit_tile(cur_gx, cur_gy, +1);
@@ -336,7 +356,7 @@ void kmain(void) {
             if (ticks != last_frame_tick) {
                 last_frame_tick = ticks;
 
-                if (state == GAME_SIEGE) {
+                for (int k = 0; k < sim_speed && state == GAME_SIEGE; k++) {
                     siege_phase_tick();
                     if (siege_phase_is_lost()) {
                         state = GAME_LOST;
@@ -379,6 +399,8 @@ void kmain(void) {
                                state == GAME_BUILD ? cur_gx : -1,
                                state == GAME_BUILD ? cur_gy : -1, tile_overlay);
                 render_hud(state, sel_tool, wave, tax_sel);
+                hud_minimap(state == GAME_BUILD ? cur_gx : -1,
+                            state == GAME_BUILD ? cur_gy : -1, g_in_siege);
                 framebuffer_flush();
                 last_render_cycles = perf_cycles() - render_t0;
                 frame_count++;

@@ -11,17 +11,24 @@ input_action_t input_poll(void) {
     }
     switch (c) {
     case 'w':
-    case 'W':
         return INPUT_UP;
+    case 'W':
+        return INPUT_UP_FAST;
     case 's':
-    case 'S':
         return INPUT_DOWN;
+    case 'S':
+        return INPUT_DOWN_FAST;
     case 'a':
-    case 'A':
         return INPUT_LEFT;
+    case 'A':
+        return INPUT_LEFT_FAST;
     case 'd':
-    case 'D':
         return INPUT_RIGHT;
+    case 'D':
+        return INPUT_RIGHT_FAST;
+    case 'f':
+    case 'F':
+        return INPUT_SPEED;
     case ' ':
         return INPUT_PLACE;
     case '\r':

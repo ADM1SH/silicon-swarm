@@ -174,13 +174,17 @@ int virtio_input_init(void) {
     return 1;
 }
 
-// Linux input keycode -> the game's ASCII alphabet.
+static int g_shift; // live modifier state from press/release events
+
+// Linux input keycode -> the game's ASCII alphabet. Shift+WASD emits the
+// capital, which the input layer maps to fast cursor moves.
 static uint8_t map_key(uint16_t code) {
     switch (code) {
-    case 17: return 'w';
-    case 30: return 'a';
-    case 31: return 's';
-    case 32: return 'd';
+    case 17: return g_shift ? 'W' : 'w';
+    case 30: return g_shift ? 'A' : 'a';
+    case 31: return g_shift ? 'S' : 's';
+    case 32: return g_shift ? 'D' : 'd';
+    case 33: return 'f';
     case 16: return 'q';
     case 18: return 'e';
     case 19: return 'r';
@@ -219,6 +223,10 @@ int virtio_input_poll_char(uint8_t *out) {
         inval(&g_events[id], sizeof(struct input_event));
         struct input_event ev = g_events[id];
         queue_push_avail(id); // recycle the buffer either way
+        if (ev.type == EV_KEY && (ev.code == 42 || ev.code == 54)) {
+            g_shift = (ev.value != 0); // track shift press AND release
+            continue;
+        }
         if (ev.type == EV_KEY && (ev.value == 1 || ev.value == 2)) {
             uint8_t c = map_key(ev.code);
             if (c) {

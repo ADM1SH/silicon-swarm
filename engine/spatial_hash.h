@@ -36,4 +36,9 @@ void spatial_hash_build(void);
 typedef void (*spatial_hash_pair_fn)(uint32_t a, uint32_t b, void *userdata);
 void spatial_hash_for_each_nearby_pair(spatial_hash_pair_fn cb, void *userdata);
 
+// Read-only view of one cell's bucket from the last build: *ids points at
+// the grouped entity-index array, *count entries. For painter's-order
+// entity rendering (draw each tile's entities with that tile).
+void spatial_hash_cell_entities(int gx, int gy, const uint32_t **ids, uint32_t *count);
+
 #endif

@@ -29,7 +29,8 @@ int city_place(int gx, int gy, city_tile_t type) {
     if (gx < 0 || gx >= WORLD_W || gy < 0 || gy >= WORLD_H) {
         return 0;
     }
-    if (world_tile[gy][gx] != CITY_EMPTY || !tile_is_flat(gx, gy)) {
+    if (world_tile[gy][gx] != CITY_EMPTY || !tile_is_flat(gx, gy) ||
+        terrain_tile_underwater(gx, gy)) {
         return 0;
     }
     if (type <= CITY_EMPTY || type >= CITY_CORE) {

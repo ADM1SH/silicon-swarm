@@ -58,6 +58,17 @@ void spatial_hash_build(void) {
     }
 }
 
+void spatial_hash_cell_entities(int gx, int gy, const uint32_t **ids, uint32_t *count) {
+    if ((unsigned)gx >= SPATIAL_HASH_W || (unsigned)gy >= SPATIAL_HASH_H) {
+        *ids = 0;
+        *count = 0;
+        return;
+    }
+    int c = gy * SPATIAL_HASH_W + gx;
+    *ids = &g_entity_index[g_cell_start[c]];
+    *count = g_cell_count[c];
+}
+
 void spatial_hash_for_each_nearby_pair(spatial_hash_pair_fn cb, void *userdata) {
     for (uint32_t i = 0; i < entity_count; i++) {
         int gx, gy;

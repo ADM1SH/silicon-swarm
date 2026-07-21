@@ -40,13 +40,15 @@ static const char *tool_name(city_tile_t t) {
     }
 }
 
-static void render_hud(game_state_t state, city_tile_t sel_tool) {
+static void render_hud(game_state_t state, city_tile_t sel_tool, int wave) {
     hud_text(16, 12, "$", 0x00FFE060);
     hud_number(16 + 6 * HUD_CHAR_W, 12, (uint32_t)(city_money > 0 ? city_money : 0), 0x00FFE060);
+    hud_text(FB_WIDTH - 10 * HUD_CHAR_W, 12, "WAVE", 0x00FFFFFF);
+    hud_number(FB_WIDTH - 2 * HUD_CHAR_W, 12, (uint32_t)wave, 0x00FFFFFF);
     if (state == GAME_BUILD) {
         hud_text(16, 12 + HUD_CHAR_H + 6, tool_name(sel_tool), 0x00FFFFFF);
         hud_text(16, FB_HEIGHT - HUD_CHAR_H - 12,
-                 "WASD MOVE  Q-E TERRAIN  SPACE PLACE  X RAZE  ENTER SIEGE", 0x00A0A0B0);
+                 "WASD MOVE  Q-E TERRAIN  R ROTATE  SPACE PLACE  X RAZE  ENTER SIEGE", 0x00A0A0B0);
     } else {
         uint32_t attackers, defenders;
         siege_phase_counts(&attackers, &defenders);
@@ -80,25 +82,42 @@ static void print_dec64(uint64_t v) {
     }
 }
 
-// Entities live in world units (16 per tile). Projection matches terrain's:
-// 1 unit = 1 px in x, 1/2 px in y, minus terrain elevation at their tile.
-// ponytail: drawn after all terrain, so an entity behind a hill draws on
-// top of it; per-tile interleaving if it ever reads as broken.
-static void render_entities(int cam_x, int cam_y) {
-    for (uint32_t i = 0; i < entity_count; i++) {
-        int ux = entity_x[i] >> 16, uy = entity_y[i] >> 16;
-        int gx = ux / FLOWFIELD_CELL_SIZE, gy = uy / FLOWFIELD_CELL_SIZE;
-        if ((unsigned)gx >= WORLD_W || (unsigned)gy >= WORLD_H) {
-            continue;
+// Entities live in world units (16 per tile), rotated into view units for
+// projection: 1 view unit = 1 px in x, 1/2 px in y, minus terrain elevation.
+static int g_cam_x, g_cam_y;
+static int g_in_siege;
+
+static void draw_entity(uint32_t i) {
+    int wux = entity_x[i] >> 16, wuy = entity_y[i] >> 16;
+    int gx = wux / FLOWFIELD_CELL_SIZE, gy = wuy / FLOWFIELD_CELL_SIZE;
+    if ((unsigned)gx >= WORLD_W || (unsigned)gy >= WORLD_H) {
+        return;
+    }
+    int vux, vuy;
+    terrain_world_to_view_units(wux, wuy, &vux, &vuy);
+    int sx = (vux - vuy) - g_cam_x;
+    int sy = (vux + vuy) / 2 - world_height[gy][gx] * ELEV_STEP - g_cam_y;
+    uint32_t c = (entity_type[i] == 1) ? DEFENDER_COLOR : ATTACKER_COLOR;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            framebuffer_set_pixel(sx + dx, sy + dy, c);
         }
-        int sx = (ux - uy) - cam_x;
-        int sy = (ux + uy) / 2 - world_height[gy][gx] * ELEV_STEP - cam_y;
-        uint32_t c = (entity_type[i] == 1) ? DEFENDER_COLOR : ATTACKER_COLOR;
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-                framebuffer_set_pixel(sx + dx, sy + dy, c);
-            }
-        }
+    }
+}
+
+// terrain_render overlay: building prism, then this tile's entities from
+// the spatial hash bucket — painter's order, so swarms occlude correctly
+// behind hills and buildings.
+static void tile_overlay(int gx, int gy, int bx, int by) {
+    city_draw_tile(gx, gy, bx, by);
+    if (!g_in_siege) {
+        return;
+    }
+    const uint32_t *ids;
+    uint32_t n;
+    spatial_hash_cell_entities(gx, gy, &ids, &n);
+    for (uint32_t k = 0; k < n; k++) {
+        draw_entity(ids[k]);
     }
 }
 
@@ -132,6 +151,7 @@ void kmain(void) {
     city_tile_t sel_tool = CITY_ROAD;
     game_state_t state = GAME_BUILD;
     int result_printed = 0;
+    int wave = 1;
 
     if (fb_ok) {
         uart_puts("v2: CITY -- WASD cursor, q/e terrain, 1=barricade 2=turret "
@@ -223,8 +243,11 @@ void kmain(void) {
                         uart_puts("demolished\n");
                     }
                     break;
+                case INPUT_ROTATE:
+                    terrain_set_rotation(terrain_get_rotation() + 1);
+                    break;
                 case INPUT_START:
-                    siege_phase_start();
+                    siege_phase_start(wave);
                     state = GAME_SIEGE;
                     result_printed = 0;
                     uart_puts("SIEGE STARTED\n");
@@ -238,7 +261,10 @@ void kmain(void) {
                 city_init();
                 entity_soa_init();
                 state = GAME_BUILD;
+                wave = 1;
                 uart_puts("NEW GAME\n");
+            } else if (state != GAME_BUILD && action == INPUT_ROTATE) {
+                terrain_set_rotation(terrain_get_rotation() + 1);
             }
 
             if (ticks != last_frame_tick) {
@@ -254,7 +280,8 @@ void kmain(void) {
                 }
                 if (!result_printed && (state == GAME_WON || state == GAME_LOST)) {
                     if (state == GAME_WON) {
-                        city_money += WIN_BOUNTY;
+                        city_money += WIN_BOUNTY + 50 * (wave - 1);
+                        wave++;
                         uart_puts("SIEGE WON -- bounty paid, back to building\n");
                         entity_soa_init(); // clear surviving defenders
                         state = GAME_BUILD;
@@ -264,18 +291,22 @@ void kmain(void) {
                     result_printed = 1;
                 }
 
-                int cam_x = ((cur_gx - cur_gy) * (TILE_W / 2)) - FB_WIDTH / 2;
-                int cam_y = ((cur_gx + cur_gy) * (TILE_H / 2)) -
-                            world_height[cur_gy][cur_gx] * ELEV_STEP - FB_HEIGHT / 2;
+                // Camera centers the cursor tile (view space, rotation-aware).
+                int vux, vuy;
+                terrain_world_to_view_units(cur_gx * 16 + 8, cur_gy * 16 + 8, &vux, &vuy);
+                g_cam_x = (vux - vuy) - FB_WIDTH / 2;
+                g_cam_y = (vux + vuy) / 2 -
+                          world_height[cur_gy][cur_gx] * ELEV_STEP - FB_HEIGHT / 2;
+                g_in_siege = (state != GAME_BUILD);
+                if (g_in_siege) {
+                    spatial_hash_build(); // fresh buckets for occlusion draw
+                }
                 uint64_t render_t0 = perf_cycles();
                 framebuffer_fill(0x00101018);
-                terrain_render(cam_x, cam_y,
+                terrain_render(g_cam_x, g_cam_y,
                                state == GAME_BUILD ? cur_gx : -1,
-                               state == GAME_BUILD ? cur_gy : -1, city_draw_tile);
-                if (state != GAME_BUILD) {
-                    render_entities(cam_x, cam_y);
-                }
-                render_hud(state, sel_tool);
+                               state == GAME_BUILD ? cur_gy : -1, tile_overlay);
+                render_hud(state, sel_tool, wave);
                 framebuffer_flush();
                 last_render_cycles = perf_cycles() - render_t0;
                 frame_count++;

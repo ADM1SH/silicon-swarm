@@ -66,6 +66,22 @@ int main(void) {
         }
     }
 
+    // All four rotations render in-bounds; world->view->render agrees.
+    for (int r = 0; r < 4; r++) {
+        terrain_set_rotation(r);
+        memset(fb, 0, sizeof(fb));
+        terrain_render(-640, 300, 5, 5, 0);
+        for (int g = 0; g < GUARD; g++) {
+            assert(fb[g] == 0 && fb[GUARD + FB_WIDTH * FB_HEIGHT + g] == 0);
+        }
+    }
+    terrain_set_rotation(0);
+
+    // Waterline: dig a tile well below WATER_LEVEL and it reads underwater.
+    for (int i = 0; i < MAX_HEIGHT; i++) terrain_edit_tile(10, 10, -1);
+    assert(terrain_tile_underwater(10, 10));
+    assert(!terrain_tile_underwater(WORLD_W / 2, WORLD_H / 2)); // plateau stays dry
+
     memset(fb, 0, sizeof(fb));
     terrain_render((WORLD_W / 2 - WORLD_H / 2) * (TILE_W / 2) - FB_WIDTH / 2,
                    (WORLD_W / 2 + WORLD_H / 2) * (TILE_H / 2) - FB_HEIGHT / 2,

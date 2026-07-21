@@ -15,6 +15,7 @@
 #define TILE_H 16
 #define ELEV_STEP 8
 #define MAX_HEIGHT 15
+#define WATER_LEVEL 3 // tiles whose avg corner height is below this are water
 
 extern uint8_t world_height[WORLD_H + 1][WORLD_W + 1];
 
@@ -37,3 +38,14 @@ void terrain_enforce_slope(void);
 // RCT terraforming: shift tile (gx, gy)'s four corners by delta (+1/-1),
 // clamped to [0, MAX_HEIGHT], propagating so the slope rule still holds.
 void terrain_edit_tile(int gx, int gy, int delta);
+
+// True if the tile's average corner height is below WATER_LEVEL. Water
+// blocks building and attacker pathing — dig moats.
+int terrain_tile_underwater(int gx, int gy);
+
+// 4-way view rotation (0..3, 90-degree steps). The world data never moves;
+// rendering iterates view space and maps back to world coordinates.
+void terrain_set_rotation(int rot);
+int terrain_get_rotation(void);
+// World entity units (16/tile) -> view units under the current rotation.
+void terrain_world_to_view_units(int wux, int wuy, int *vux, int *vuy);

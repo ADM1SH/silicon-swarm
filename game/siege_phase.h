@@ -15,7 +15,8 @@
 // flow field toward SIEGE_TARGET_GX/GY (city_grid's barricades may have
 // changed flowfield_cost since the last build), and resets core HP. Call
 // once when transitioning from build to siege.
-void siege_phase_start(void);
+// wave >= 1: attacker count and HP escalate with the wave number.
+void siege_phase_start(int wave);
 
 // One simulation tick: attacker steering (flow field) plus defenders
 // holding position, position update, an attacker reaching the target

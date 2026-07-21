@@ -34,15 +34,21 @@ make run-gfx`, opening the game in its own window.
 
 **Build phase** (starts immediately, yellow tile = cursor, tall green prism
 = your city core on the central plateau):
+- **Type straight into the game window** — the guest has a real (virtio)
+  keyboard now; the terminal still works too
 - WASD — move the cursor one tile; the camera follows
+- `r` — rotate the view 90° (4-way, RCT-style)
 - `q` / `e` — raise / lower terrain under the cursor (RCT terraforming;
-  buildings need flat ground, so sculpt first)
+  buildings need flat ground, so sculpt first). Digging below the
+  waterline makes **water**: it blocks building *and* attacker pathing —
+  moats are a real defense
 - `1` barricade $10 (blocks pathing) · `2` turret $50 (shoots, 2.5-tile
   range) · `3` road $5 · `4` house $20 (earns $2/s **only while touching a
   road**)
 - Space — place · `x` — demolish (half refund) · Enter — start the siege
 
-**Siege phase**: automatic. 2,000 attackers (blue) spawn at the world edges
+**Siege phase**: automatic. Waves escalate — wave n brings 1000 + 750(n−1)
+attackers with growing HP, and pays a growing bounty. Attackers (blue) spawn at the world edges
 and flow-field their way to your core, routing around buildings and getting
 shot by turret defenders (gold) on the way. Win (all attackers dead) pays a
 $150 bounty and returns to building; lose (core HP 0) shows the game-over

@@ -16,8 +16,7 @@
 #define ENTITY_TYPE_ATTACKER 0
 #define ENTITY_TYPE_DEFENDER 1
 
-#define NUM_ATTACKERS 2000
-#define ATTACKER_HP 4
+#define ATTACKER_HP_BASE 4
 #define DEFENDER_HP 40
 #define ENTITY_SPEED (2 << 16) // 2 px/tick in Q16.16
 #define COMBAT_RANGE_PX 10 // attacker melee reach (world units)
@@ -36,6 +35,8 @@
 #define EDGE_BAND_PX (EDGE_BAND_CELLS * SPATIAL_HASH_CELL_SIZE)
 
 static int32_t g_core_hp;
+static int g_num_attackers;
+static int16_t g_attacker_hp;
 static uint32_t g_rng_state = 12345;
 static uint64_t g_last_steer_cycles;
 static uint64_t g_last_combat_cycles;
@@ -46,7 +47,7 @@ static uint32_t next_rand(void) {
 }
 
 static void spawn_attackers(void) {
-    for (int i = 0; i < NUM_ATTACKERS; i++) {
+    for (int i = 0; i < g_num_attackers; i++) {
         int32_t x, y;
         switch (i % 4) {
         case 0: // near north edge
@@ -66,7 +67,7 @@ static void spawn_attackers(void) {
             y = (int32_t)(next_rand() % WORLD_UNITS_H) << 16;
             break;
         }
-        entity_spawn(x, y, 0, 0, ATTACKER_HP, ENTITY_TYPE_ATTACKER);
+        entity_spawn(x, y, 0, 0, g_attacker_hp, ENTITY_TYPE_ATTACKER);
     }
 }
 
@@ -89,12 +90,16 @@ static void build_cost_from_city(void) {
         for (int gx = 0; gx < WORLD_W; gx++) {
             uint8_t t = world_tile[gy][gx];
             flowfield_cost[gy][gx] =
-                (t == CITY_HOUSE || t == CITY_BARRICADE || t == CITY_TURRET) ? 255 : 0;
+                (t == CITY_HOUSE || t == CITY_BARRICADE || t == CITY_TURRET ||
+                 terrain_tile_underwater(gx, gy)) ? 255 : 0; // moats work
         }
     }
 }
 
-void siege_phase_start(void) {
+void siege_phase_start(int wave) {
+    if (wave < 1) wave = 1;
+    g_num_attackers = 1000 + 750 * (wave - 1);
+    g_attacker_hp = (int16_t)(ATTACKER_HP_BASE + (wave - 1));
     entity_soa_init();
     build_cost_from_city();
     flowfield_build(SIEGE_TARGET_GX, SIEGE_TARGET_GY);

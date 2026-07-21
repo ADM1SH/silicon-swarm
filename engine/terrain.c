@@ -106,8 +106,12 @@ void terrain_init(void) {
             world_height[cy][cx] = (uint8_t)noise_height(cx, cy);
         }
     }
-    // Flat plateau in the middle for the city (city center at 64,64).
+    // Flat plateau in the middle for the city (city center at 64,64),
+    // always above the waterline so the core can't spawn drowned.
     int ph = world_height[WORLD_H / 2][WORLD_W / 2];
+    if (ph <= WATER_LEVEL) {
+        ph = WATER_LEVEL + 1;
+    }
     for (int cy = WORLD_H / 2 - 12; cy <= WORLD_H / 2 + 12; cy++) {
         for (int cx = WORLD_W / 2 - 12; cx <= WORLD_W / 2 + 12; cx++) {
             world_height[cy][cx] = (uint8_t)ph;
@@ -189,27 +193,82 @@ static uint32_t shade(uint32_t c, int s) {
     return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
+// ---- 4-way rotation ----
+// The world never moves; the renderer walks VIEW space (painter's order is
+// a view-space property) and maps each view tile/corner back into world
+// coordinates to fetch heights, city data, and the cursor.
+
+static int g_rot;
+
+void terrain_set_rotation(int rot) {
+    g_rot = rot & 3;
+}
+int terrain_get_rotation(void) {
+    return g_rot;
+}
+
+static void view_to_world_tile(int vx, int vy, int *gx, int *gy) {
+    switch (g_rot) {
+    case 0: *gx = vx; *gy = vy; break;
+    case 1: *gx = vy; *gy = WORLD_H - 1 - vx; break;
+    case 2: *gx = WORLD_W - 1 - vx; *gy = WORLD_H - 1 - vy; break;
+    default: *gx = WORLD_W - 1 - vy; *gy = vx; break;
+    }
+}
+
+static void view_to_world_corner(int cx, int cy, int *wx, int *wy) {
+    switch (g_rot) {
+    case 0: *wx = cx; *wy = cy; break;
+    case 1: *wx = cy; *wy = WORLD_H - cx; break;
+    case 2: *wx = WORLD_W - cx; *wy = WORLD_H - cy; break;
+    default: *wx = WORLD_W - cy; *wy = cx; break;
+    }
+}
+
+void terrain_world_to_view_units(int wux, int wuy, int *vux, int *vuy) {
+    const int UW = WORLD_W * 16, UH = WORLD_H * 16;
+    switch (g_rot) {
+    case 0: *vux = wux; *vuy = wuy; break;
+    case 1: *vux = UH - wuy; *vuy = wux; break;
+    case 2: *vux = UW - wux; *vuy = UH - wuy; break;
+    default: *vux = wuy; *vuy = UW - wux; break;
+    }
+}
+
+int terrain_tile_underwater(int gx, int gy) {
+    if ((unsigned)gx >= WORLD_W || (unsigned)gy >= WORLD_H) {
+        return 0;
+    }
+    return (world_height[gy][gx] + world_height[gy][gx + 1] +
+            world_height[gy + 1][gx] + world_height[gy + 1][gx + 1]) / 4 < WATER_LEVEL;
+}
+
 void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy,
                     void (*tile_overlay)(int gx, int gy, int bx, int by)) {
     // ponytail: full repaint every frame; dirty-rect tracking if profiling
     // ever shows terrain fill dominating (Phase 6 will measure).
     for (int d = 0; d <= (WORLD_W - 1) + (WORLD_H - 1); d++) {
-        int gx0 = d - (WORLD_H - 1);
-        if (gx0 < 0) gx0 = 0;
-        int gx1 = d;
-        if (gx1 > WORLD_W - 1) gx1 = WORLD_W - 1;
-        for (int gx = gx0; gx <= gx1; gx++) {
-            int gy = d - gx;
+        int vx0 = d - (WORLD_H - 1);
+        if (vx0 < 0) vx0 = 0;
+        int vx1 = d;
+        if (vx1 > WORLD_W - 1) vx1 = WORLD_W - 1;
+        for (int vx = vx0; vx <= vx1; vx++) {
+            int vy = d - vx;
+            int gx, gy, wcx, wcy;
+            view_to_world_tile(vx, vy, &gx, &gy);
 
-            int h00 = world_height[gy][gx];
-            int h10 = world_height[gy][gx + 1];
-            int h01 = world_height[gy + 1][gx];
-            int h11 = world_height[gy + 1][gx + 1];
+            view_to_world_corner(vx, vy, &wcx, &wcy);
+            int h00 = world_height[wcy][wcx];
+            view_to_world_corner(vx + 1, vy, &wcx, &wcy);
+            int h10 = world_height[wcy][wcx];
+            view_to_world_corner(vx, vy + 1, &wcx, &wcy);
+            int h01 = world_height[wcy][wcx];
+            view_to_world_corner(vx + 1, vy + 1, &wcx, &wcy);
+            int h11 = world_height[wcy][wcx];
 
-            // Projected corners: N = (gx,gy), E = (gx+1,gy), S = (gx+1,gy+1),
-            // W = (gx,gy+1) in screen space.
-            int bx = (gx - gy) * (TILE_W / 2) - cam_x;
-            int by = (gx + gy) * (TILE_H / 2) - cam_y;
+            // Projected corners in VIEW space: N=(vx,vy), E, S, W.
+            int bx = (vx - vy) * (TILE_W / 2) - cam_x;
+            int by = (vx + vy) * (TILE_H / 2) - cam_y;
             int nx = bx, ny = by - h00 * ELEV_STEP;
             int ex = bx + TILE_W / 2, ey = by + TILE_H / 2 - h10 * ELEV_STEP;
             int sx = bx, sy = by + TILE_H - h11 * ELEV_STEP;
@@ -237,6 +296,17 @@ void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy,
 
             iso_fill_tri(nx, ny, ex, ey, sx, sy, color);
             iso_fill_tri(nx, ny, sx, sy, wx, wy, color);
+
+            // Flat water plane over submerged tiles, depth-shaded.
+            int havg2 = (h00 + h10 + h01 + h11) / 4;
+            if (havg2 < WATER_LEVEL) {
+                int off = WATER_LEVEL * ELEV_STEP;
+                uint32_t wcol = (WATER_LEVEL - havg2 >= 2) ? 0x00142E52 : 0x001E4066;
+                iso_fill_tri(bx, by - off, bx + TILE_W / 2, by + TILE_H / 2 - off,
+                             bx, by + TILE_H - off, wcol);
+                iso_fill_tri(bx, by - off, bx, by + TILE_H - off,
+                             bx - TILE_W / 2, by + TILE_H / 2 - off, wcol);
+            }
             if (tile_overlay) {
                 tile_overlay(gx, gy, bx, by);
             }

@@ -47,7 +47,7 @@ int main(void) {
     int cams[][2] = {{-640, 300}, {0, 0}, {-100000, -100000}, {100000, 100000}, {-640, 900}};
     for (unsigned i = 0; i < sizeof(cams) / sizeof(cams[0]); i++) {
         memset(fb, 0, sizeof(fb));
-        terrain_render(cams[i][0], cams[i][1], -1, -1);
+        terrain_render(cams[i][0], cams[i][1], -1, -1, 0);
         for (int g = 0; g < GUARD; g++) {
             assert(fb[g] == 0);
             assert(fb[GUARD + FB_WIDTH * FB_HEIGHT + g] == 0);
@@ -69,7 +69,7 @@ int main(void) {
     memset(fb, 0, sizeof(fb));
     terrain_render((WORLD_W / 2 - WORLD_H / 2) * (TILE_W / 2) - FB_WIDTH / 2,
                    (WORLD_W / 2 + WORLD_H / 2) * (TILE_H / 2) - FB_HEIGHT / 2,
-                   WORLD_W / 2, WORLD_H / 2);
+                   WORLD_W / 2, WORLD_H / 2, 0);
     int painted = 0;
     for (int i = 0; i < FB_WIDTH * FB_HEIGHT; i++) {
         painted += (fb[GUARD + i] != 0);

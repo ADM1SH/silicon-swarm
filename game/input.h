@@ -16,6 +16,9 @@ typedef enum {
     INPUT_TOOL_TURRET,    // '2'
     INPUT_RAISE,          // 'q' -- raise terrain under the cursor (v2)
     INPUT_LOWER,          // 'e' -- lower terrain under the cursor (v2)
+    INPUT_TOOL_ROAD,      // '3' (v2)
+    INPUT_TOOL_HOUSE,     // '4' (v2)
+    INPUT_DEMOLISH,       // 'x' (v2)
 } input_action_t;
 
 // Non-blocking. Returns INPUT_NONE if no byte was pending or the byte read

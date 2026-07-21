@@ -34,6 +34,13 @@ input_action_t input_poll(void) {
     case 'e':
     case 'E':
         return INPUT_LOWER;
+    case '3':
+        return INPUT_TOOL_ROAD;
+    case '4':
+        return INPUT_TOOL_HOUSE;
+    case 'x':
+    case 'X':
+        return INPUT_DEMOLISH;
     default:
         return INPUT_NONE;
     }

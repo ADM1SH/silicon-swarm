@@ -132,8 +132,9 @@ static inline void span(int y, int xl, int xr, uint32_t color) {
 }
 
 // 16.16 fixed-point edge walk, vertices sorted by y. Degenerate (zero-height)
-// triangles fall out naturally: their loops run zero times.
-static void fill_tri(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
+// triangles fall out naturally: their loops run zero times. Exported so the
+// city layer can rasterize building prisms with the same span pipeline.
+void iso_fill_tri(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color) {
     int tx, ty;
     if (y0 > y1) { tx = x0; x0 = x1; x1 = tx; ty = y0; y0 = y1; y1 = ty; }
     if (y0 > y2) { tx = x0; x0 = x2; x2 = tx; ty = y0; y0 = y2; y2 = ty; }
@@ -188,7 +189,8 @@ static uint32_t shade(uint32_t c, int s) {
     return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
 }
 
-void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy) {
+void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy,
+                    void (*tile_overlay)(int gx, int gy, int bx, int by)) {
     // ponytail: full repaint every frame; dirty-rect tracking if profiling
     // ever shows terrain fill dominating (Phase 6 will measure).
     for (int d = 0; d <= (WORLD_W - 1) + (WORLD_H - 1); d++) {
@@ -233,8 +235,11 @@ void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy) {
                 color = 0x00FFE060; // cursor highlight, drawn in painter's order
             }
 
-            fill_tri(nx, ny, ex, ey, sx, sy, color);
-            fill_tri(nx, ny, sx, sy, wx, wy, color);
+            iso_fill_tri(nx, ny, ex, ey, sx, sy, color);
+            iso_fill_tri(nx, ny, sx, sy, wx, wy, color);
+            if (tile_overlay) {
+                tile_overlay(gx, gy, bx, by);
+            }
         }
     }
 }

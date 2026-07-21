@@ -21,7 +21,14 @@ extern uint8_t world_height[WORLD_H + 1][WORLD_W + 1];
 void terrain_init(void);
 
 // cur_gx/cur_gy: tile to draw highlighted as the cursor (-1,-1 for none).
-void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy);
+// tile_overlay (may be NULL): called per visible tile right after its
+// terrain quad, in painter's order, with the projected base point of the
+// tile's north corner (bx, by; no elevation applied) — for buildings etc.
+void terrain_render(int cam_x, int cam_y, int cur_gx, int cur_gy,
+                    void (*tile_overlay)(int gx, int gy, int bx, int by));
+
+// Flat-shaded triangle into the framebuffer (screen px, any winding).
+void iso_fill_tri(int x0, int y0, int x1, int y1, int x2, int y2, uint32_t color);
 
 // Relax the heightmap so orthogonally adjacent corners differ by <= 1 unit
 // (the RCT slope rule). Call after any bulk height edit.
